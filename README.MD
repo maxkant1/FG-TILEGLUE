@@ -10,7 +10,7 @@ Moreover you will find a quick manual, executable code of GLUE, some byproducts 
 
 At this stage the program is working but it needs deeper testing. I have tested it, at least for reading and writing tiles and airport BTG files, for 10 randomly selected tiles in the world scenery but, having 2500000 tiles, it represent only a 0,0004% succesful sample.
 
-So please, fell free to try and experiment, or contact me in the FG Forum and send me your terrain tile, I'll try to fix it for you.
+So please, feel free to try and experiment, or contact me in the FG Forum and send me your terrain tile, I'll try to fix it for you.
 
 Have Fun
 
