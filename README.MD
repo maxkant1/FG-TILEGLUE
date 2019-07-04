@@ -1,6 +1,6 @@
 Flightgear Scenery and terrain developers know very well problems that can arise, for a lot of reasons, when trying to upgrade and substitute old terrain tiles with newer ones.
 Generally tiles boundaries do not match and different heigths of triangles creates what is often called "seams".
-This fact has orientend developers to upgrade airports and related terrains of islands, where ocean around the isle solve the problem, because "seams" seam waste a lot of work spended in upgrading continental airports and terrain.
+This fact has orientend developers to upgrade airports and related terrains of islands, where ocean around the isle solve the problem, because "seams" seem waste a lot of work spended in upgrading continental airports and terrain.
 
 This project aims to solve "seams" problem and actually it has solved, at least form me, problems  presented in the original LIEO apt tile (3104954 E09N40).
 
