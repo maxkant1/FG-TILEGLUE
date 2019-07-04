@@ -35,7 +35,7 @@ bottom and .dat extension.
 Few words about boundary file format: Boundary files are binary files containing an header specifying the number of points of
 the boundary, orientation (may be "lam" or "fi" respectively for horizontal or vertical orientation) and the geodetic coordinate
 value of the boundary.
-Boundary files can be easely converted into script file for visualization (ACAD scr script format) or ASCII format to be loaded
+Boundary files can be easily converted into script file for visualization (ACAD scr script format) or ASCII format to be loaded
 and graphically representedin Excel, using the utilities boundarytoscript or boundarytoASCII.
         
         -oGeod <outputfile> performs transformation of coordinates from ECEF to Geodetic and saves
