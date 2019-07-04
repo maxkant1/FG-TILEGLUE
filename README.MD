@@ -10,7 +10,7 @@ You will find herein the VB.NET code (please do not blame me, I'm sure that C pr
 GLUE is for now a console application driven by command lines args, just like programs in terragear toolchain, but in the near future could have a GUI interface.
 Moreover you will find a quick manual, executable code of GLUE, some byproducts utility and the images of tile before and after GLUE.
 
-GLUE started initially with two main goals: to test algorithms and to demonstrate feasibility, but it has developed quickly and has produced first result.
+GLUE started initially with few main goals: understand BTG file structure, test algorithms and demonstrate feasibility, but it has developed quickly and has produced first results.
 
 At this stage the program is working but it needs deeper testing. I have tested it, at least for reading and writing tiles and airport BTG files, for 10 randomly selected tiles in the world scenery but, having 2500000 tiles, it represent only a 0,0004% succesful sample.
 
