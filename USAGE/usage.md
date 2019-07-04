@@ -58,7 +58,7 @@ and graphically representedin Excel, using the utilities boundarytoscript or bou
 ## Workflow:
 
 Let's suppose we want to eliminate seams at the top boundary of tile 3104954. We need to ungzip the btg file of tile 3104954
-and of tile 3104962 and save the btg files in a work folder (you can easely check tiles name using [FG-maps](https://scenery.flightgear.org/map/)).
+and of tile 3104962 and save the btg files in a work folder (you can easily check tiles name using [FG-maps](https://scenery.flightgear.org/map/)).
 then you need to calculate and save the bottom boundary of tile 3104962:
 
 -i C:\TEST\3104962.btg -oTBtop 41.00
