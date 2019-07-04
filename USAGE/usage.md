@@ -77,3 +77,6 @@ please, note that the output file is in geodetic coordinates, so you have to rev
 
 now gzip your file obtaining 3104954gluedgeodECEF.btg.gz and rename the original tile under the terrain root as you please,
 copy 3104954gluedgeodECEF.btg.gz and rename it with the original tile name and enjoy...
+
+## Utilities:
+Utilities Boundarytoscript and BoundarytoASCII need only input and output filenames and path as parameters.
