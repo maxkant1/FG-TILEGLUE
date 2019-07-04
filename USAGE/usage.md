@@ -18,9 +18,10 @@ Please, note that, at this stage, GLUE can only read BTG uncompressed file forma
         
         example: -o C:\TEST\3104954mod.btg
         
-        -oTB<side> <boundary geodetic coord>  trasform coordinates from ECEF xyz to geodetic lambda, phi, elevation and then
-                                              perform the output of the boundary file at the given geodetic coordinates.
-                                              (next more info on boundary file format)
+        -oTB<side> <boundary geodetic coord>  trasform coordinates from ECEF xyz to geodetic lambda, phi, 
+                                              elevation and then perform the output of the boundary file at 
+                                              the given geodetic coordinates. (more info on boundary file 
+                                              format in the following)
         
         Could be -oTBright -oTBleft - oTBtop -oTBbottom 
 
