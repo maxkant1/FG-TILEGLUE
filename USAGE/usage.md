@@ -46,8 +46,8 @@ and graphically representedin Excel, using the utilities boundarytoscript or bou
         
         example: -oECEF C:\TEST\3104954ECEF.btg
         
-        -g<side> <boundary file> performs the glueing of the tile border to the specified tile boundary by inserting new points
-                                 and triangles and modifying point heights to match.
+        -g<side> <boundary file> performs the glueing of the tile border to the specified tile boundary by 
+                                 inserting new points and triangles and modifying point heights to match.
         
         Could be -gright -gleft -gtop -gbottom 
 
