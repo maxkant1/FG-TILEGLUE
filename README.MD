@@ -6,7 +6,7 @@ This project aims to solve "seams" problem and actually it has solved, at least 
 
 You will find herein the VB.NET code (please do not blame me, I'm sure that C programmers clever than me could port easily the code from VB.NET to C) of the program named GLUE.
 GLUE is for now a console application driven by command lines args, just like programs in terragear toolchain, but in the near future could have a GUI interface.
-Moreover you will find a quick manual, executable code of GLUE, some byproducts utility and the images of tile brfor and after GLUE.
+Moreover you will find a quick manual, executable code of GLUE, some byproducts utility and the images of tile before and after GLUE.
 
 At this stage the program is working but it needs deeper testing. I have tested it, at least for reading and writing tiles and airport BTG files, for 10 randomly selected tiles in the world scenery but, having 2500000 tiles, it represent only a 0,0004% succesful sample.
 
