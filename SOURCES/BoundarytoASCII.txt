@@ -1,0 +1,125 @@
+Imports System.IO
+'-----------------------------------------------------------------------------------------------
+'
+' BoundarytoASCII
+'
+' exports tile boundary data from binary to ASCII text format.
+'
+'-----------------------------------------------------------------------------------------------
+' 
+'  Written by Massimo Cantone, started May 2019.
+' 
+'  Copyright (C) 2019  Massimo Cantone  (aka maxkant1 in FG Forum https://forum.flightgear.org)
+' 
+'  This program is free software; you can redistribute it and/or modify
+'  it under the terms of the GNU General Public License as published by
+'  the Free Software Foundation;  version 3 or later.
+' 
+'  This program is distributed as is, WITHOUT ANY WARRANTY.  
+'  See the GNU General Public License for more details.
+' 
+'------------------------------------------------------------------------------------------------
+
+Module Module1
+    Class BCOORD
+        Public xc As Double
+        Public yc As Double
+    End Class
+    Class BOUNDOBJ
+        Public NumV As Integer
+        Public BorderType As String
+        Public BorderCoord As Double
+        Public BcoordList As List(Of BCOORD)
+    End Class
+
+    Dim GeomstreamWriter As IO.StreamWriter
+
+    Dim filein As String = String.Empty, fileout As String
+
+
+
+    Sub Main()
+
+        MsgBox("Hello World!", vbOKOnly)
+        Dim j As Integer
+        Dim args() As String = System.Environment.GetCommandLineArgs()
+
+        Dim big As Double, xmin As Double, xmax As Double, ymin As Double, ymax As Double
+
+        '-------------------------------------------------------------------------------
+        ' Command Line analisys
+        '-------------------------------------------------------------------------------
+        filein = args(1)
+        fileout = args(2)
+
+        big = 100000000.0
+
+        xmin = big
+        xmax = -big
+        ymin = big
+        ymax = -big
+
+        Dim _bobj As New BOUNDOBJ()
+        Dim _BcList As New List(Of BCOORD)()
+        ' Create the reader in a Using statement and open input Boundary file
+        Using reader As New BinaryReader(File.Open(filein, FileMode.Open))
+            _bobj.NumV = reader.ReadInt32
+            _bobj.BorderType = reader.ReadString
+            _bobj.BorderCoord = reader.ReadDouble
+            _bobj.BcoordList = New List(Of BCOORD)()
+            For j = 0 To _bobj.NumV - 1
+                Dim _bc As New BCOORD
+                _bc.xc = reader.ReadDouble
+                _bc.yc = reader.ReadDouble
+                _bobj.BcoordList.Add(_bc)
+                If (_bc.xc < xmin) Then xmin = _bc.xc
+                If (_bc.xc > xmax) Then xmax = _bc.xc
+                If (_bc.yc < ymin) Then ymin = _bc.yc
+                If (_bc.yc > ymax) Then ymax = _bc.yc
+            Next
+        End Using
+        Console.WriteLine("xmin xmax deltax: " & xmin & " " & xmax & " " & (xmax - xmin))
+        Console.WriteLine("ymin ymax deltay: " & ymin & " " & ymax & " " & (ymax - ymin))
+        
+        '--------------------------------------------------------------------------
+        ' Output routine to ASCII FILE
+        '--------------------------------------------------------------------------
+
+        GeomstreamWriter = New IO.StreamWriter(fileout, False) 'script file ACAD for geometric objs
+
+        GeomstreamWriter.WriteLine(_bobj.NumV)
+        GeomstreamWriter.WriteLine(_bobj.BorderType)
+        GeomstreamWriter.WriteLine(_bobj.BorderCoord)
+
+        For Each _bc As BCOORD In _bobj.BcoordList
+            GeomstreamWriter.WriteLine(_bc.xc & ";" & _bc.yc)
+        Next
+
+        GeomstreamWriter.WriteLine("")
+        GeomstreamWriter.Close()
+
+    End Sub
+
+
+    Function ConvLocal(ByVal outstr As String) As String
+        Dim newstr As String
+        newstr = outstr.Replace(",", ".")
+        ConvLocal = newstr.Replace(";", ",")
+    End Function
+    Function Tilename(ByVal nomefile As String) As String
+        Dim k As Integer, mychar As Char
+        Dim kf As Integer
+        For k = 0 To nomefile.Length - 1
+            mychar = nomefile.Substring(k, 1)
+            If (mychar = ".") Then kf = k
+        Next
+        Tilename = nomefile.Substring(0, kf)
+    End Function
+
+
+End Module
+
+
+
+
+

@@ -1,0 +1,2073 @@
+Imports System.IO
+'----------------------------------------------------------------------------------------------
+'
+' Glue force geometric continuity beetween FG terrain Tiles.
+' Glue reads and writes Terrain and airport data in BTG format files V 7 and V 10
+'
+' Glue contains some interesting tools. It can project data from ECCF (Earth Centered Earth
+' Fixed xyz coordinates system to Geodetic coordinates (Lambda, phi, elevation) using
+' WG84 datum.
+'
+' Glue can also output script files to be used to visually inspect meshes
+'
+' CHANGE LOG:
+' Vers. 0       This version          15/06/2019
+'
+'-----------------------------------------------------------------------------------------------
+' 
+'  Written by Massimo Cantone, started May 2019.
+' 
+'  Copyright (C) 2019  Massimo Cantone  (aka maxkant1 in FG Forum https://forum.flightgear.org)
+' 
+'  This program is free software; you can redistribute it and/or modify
+'  it under the terms of the GNU General Public License as published by
+'  the Free Software Foundation;  version 3 or later.
+' 
+'  This program is distributed as is, WITHOUT ANY WARRANTY.  
+'  See the GNU General Public License for more details.
+' 
+'------------------------------------------------------------------------------------------------
+Module Module1
+    Class BTG
+        Public BTGver As UShort
+        Public magnum As UShort
+        Public creation_time As UInt32
+        Public numtopobj32 As UInt32        'Number of Top Level Objects. !!! If BTGver = 7 Ushort If BTGver = 10 Uint32 !!!
+    End Class
+    Class BTGOBJ
+        Public objtype As Char
+        Public numobjprop32 As UInt32   'Number of Top Level Objects properties. !!! If BTGver = 7 Ushort If BTGver = 10 Uint32 !!!
+        Public numobjel32 As UInt32
+        Public Sub New(ByVal objtype As Char, ByVal numobjprop32 As UInt32, ByVal numobjel32 As UInt32)
+            Me.objtype = objtype
+            Me.numobjprop32 = numobjprop32
+            Me.numobjel32 = numobjel32
+        End Sub
+    End Class
+    Class BSOBJ
+        Public BSbytesnum As UInt32
+        Public BScenterx As Double
+        Public BScentery As Double
+        Public BScenterz As Double
+        Public BSradius As Single
+    End Class
+    Class VERTEX
+        Public Vertx As Single
+        Public Verty As Single
+        Public Vertz As Single
+        Public Sub New(ByVal Vertx As Single, ByVal Verty As Single, ByVal Vertz As Single)
+            Me.Vertx = Vertx
+            Me.Verty = Verty
+            Me.Vertz = Vertz
+        End Sub
+    End Class
+    Class NORMAL
+        Public Normx As Byte
+        Public Normy As Byte
+        Public Normz As Byte
+        Public Sub New(ByVal Normx As Single, ByVal Normy As Single, ByVal Normz As Single)
+            Me.Normx = Normx
+            Me.Normy = Normy
+            Me.Normz = Normz
+        End Sub
+    End Class
+    Class TEXTURE
+        Public Textx As Single
+        Public Texty As Single
+        Public Sub New(ByVal Textx As Single, ByVal Texty As Single)
+            Me.Textx = Textx
+            Me.Texty = Texty
+        End Sub
+    End Class
+    Class COLOR
+        Public Colred As Single
+        Public Colgreen As Single
+        Public Colblue As Single
+        Public Colalpha As Single
+        Public Sub New(ByVal Colred As Single, ByVal Colgreen As Single, ByVal Colblue As Single, ByVal Colalpha As Single)
+            Me.Colred = Colred
+            Me.Colgreen = Colgreen
+            Me.Colblue = Colblue
+            Me.Colalpha = Colalpha
+        End Sub
+    End Class
+    Class POINTIDX
+        Public Vertidx32 As UInt32
+        Public Normidx32 As UInt32
+        Public Colidx32 As UInt32
+        Public Textidx32 As UInt32
+    End Class
+    Class PNTOBJ
+        Public PropType1 As Char
+        Public PropDatabytesnum1 As UInt32
+        Public Material As String
+        Public PropType2 As Char
+        Public PropDatabytesnum2 As UInt32
+        Public PropDatabyte As Byte
+        Public PointidxList As List(Of POINTIDX)
+    End Class
+    '------------------------------------------------
+    Class ITRIIDX
+        Public Vertidx32 As UInt32
+        Public Normidx32 As UInt32
+        Public Colidx32 As UInt32
+        Public Textidx32 As UInt32
+    End Class
+    Class ITRIOBJ
+        Public PropType1 As Char
+        Public PropDatabytesnum1 As UInt32
+        Public Material As String
+        Public PropType2 As Char
+        Public PropDatabytesnum2 As UInt32
+        Public PropDatabyte As Byte
+        Public ItriidxList As List(Of ITRIIDX)
+    End Class
+
+    Class BCOORD
+        Public xc As Double
+        Public yc As Double
+    End Class
+    Class BOUNDOBJ
+        Public NumV As Integer
+        Public BorderType As String
+        Public BorderCoord As Double
+        Public BcoordList As List(Of BCOORD)
+    End Class
+    Class BVERTIDX
+        Public KBidx As Integer
+        Public KVidx As UInt32
+        Public KNidx As UInt32
+        Public KCidx As UInt32
+        Public KTidx As UInt32
+        Public Sub New(ByVal KBidx As Integer, ByVal KVidx As UInt32, ByVal KNidx As UInt32, ByVal KCidx As UInt32, ByVal KTidx As UInt32)
+            Me.KBidx = KBidx
+            Me.KVidx = KVidx
+            Me.KNidx = KNidx
+            Me.KCidx = KCidx
+            Me.KTidx = KTidx
+        End Sub
+    End Class
+    Dim TopLevelObjList As New List(Of BTGOBJ)()
+    '------------------------------------------------
+    Dim BTGv As UShort
+
+    Dim otype As Char
+    Dim intobjtype As Integer, ObjName(12) As String
+    Dim numprop As UInt32
+    Dim numoel As UInt32
+
+    Dim PropType As Char, intproptype As Integer
+    Dim PropDatabytesnum As UInt32
+    Dim PropDatabyte As Byte
+
+    Dim BSphere1 As BSOBJ = New BSOBJ()
+
+    Dim Vertexbytesnum As UInt32, numvert As Integer
+    Dim VertexList As New List(Of VERTEX)()
+
+    Dim Colorbytesnum As UInt32, numcol As Integer
+    Dim ColorList As New List(Of COLOR)()
+
+    Dim Normalbytesnum As UInt32, numnorm As Integer
+    Dim NormalList As New List(Of NORMAL)()
+
+
+    Dim Texturebytesnum As UInt32, numtexture As Integer
+    Dim TextureList As New List(Of TEXTURE)()
+
+
+    Dim PntobjList As New List(Of PNTOBJ)()
+
+    Dim ItriobjList As New List(Of ITRIOBJ)()
+
+    Dim BcoordList As New List(Of BCOORD)
+
+    Dim BvertidxList As New List(Of BVERTIDX)()
+
+    Dim PropName(2) As String
+
+    Dim GeomstreamWriter As IO.StreamWriter
+    Dim BTG1 As New BTG
+    Dim filein As String = String.Empty, fileout As String, filescr As String, filegeod As String
+    Dim filegLeft As String, filegRight As String, filegTop As String, filegBottom As String, glueflg As Boolean
+    Dim TBleft As Double, TBright As Double, TBtop As Double, TBbottom As Double
+    Dim oscr As Boolean, oobj As Boolean, oBTG As Boolean, Geod As Boolean, Ecef As Boolean, Bleft As Boolean, Bright As Boolean, Btop As Boolean, Bbottom As Boolean
+    Dim totalenuovitri As Integer, nuovitri As Integer
+
+    Sub Main()
+
+        'MsgBox("Hello World!", vbOKOnly)
+        Dim j As Integer, k As Integer, mycomm As String
+        Dim args() As String = System.Environment.GetCommandLineArgs()
+
+
+
+        ObjName(0) = "Bounding Sphere"
+        ObjName(1) = "Vertex List"
+        ObjName(2) = "Normal List"
+        ObjName(3) = "Texture coordinates List"
+        ObjName(4) = "Color List"
+        ObjName(9) = "Points"
+        ObjName(10) = "Individual Triangles"
+        ObjName(11) = "Triangle Strips"
+        ObjName(12) = "Triangle Fans"
+
+        PropName(0) = "Material"
+        PropName(1) = "Index type"
+        glueflg = False
+
+        '-------------------------------------------------------------------------------
+        ' Command Line analisys
+        '-------------------------------------------------------------------------------
+        ' For Each arg As String In args
+        'Console.WriteLine(arg)
+        'Next
+        'Console.ReadKey()
+        For k = 1 To args.Count - 1 Step 2
+            'Console.WriteLine(k & " " & args(k))
+            mycomm = args(k)
+            Select Case mycomm
+                Case "-i"           'input BTG file
+                    filein = args(k + 1)
+                Case "-o"           'output BTG file
+                    fileout = args(k + 1)
+                    oBTG = True
+                Case "-oscr"        'output ACAD script file
+                    filescr = args(k + 1)
+                    oscr = True
+                Case "-oobj"        'output WF obj text file
+                    ' for future use
+                    oobj = True
+                Case "-oTBleft"     ' Tile boundary Left - geodetic coords. (output binary file name: <tilename>TBleft.dat)
+                    TBleft = Convert.ToSingle(args(k + 1))
+                    'MsgBox("TBLeft " & TBleft, vbOKOnly)
+                    Bleft = True
+                Case "-oTBright"    ' Tile boundary Right - geodetic coords. (output binary file name: <tilename>TBright.dat)
+                    TBright = Convert.ToSingle(args(k + 1))
+                    Bright = True
+                Case "-oTBtop"      ' Tile boundary Top - geodetic coords. (output binary file name: <tilename>TBtop.dat)
+                    TBtop = Convert.ToSingle(args(k + 1))
+                    Btop = True
+                Case "-oTBbottom"   ' Tile boundary Bottom - geodetic coords. (output binary file name: <tilename>TBbottom.dat)
+                    TBbottom = Convert.ToSingle(args(k + 1))
+                    Bbottom = True
+                Case "-oGeod"       'Perform geodetic coords transform
+                    filegeod = args(k + 1)
+                    fileout = filegeod
+                    Geod = True
+                Case "-oECEF"       'output file in ECEF (xyz) coords (same as -o)
+                    fileout = args(k + 1)
+                    oBTG = True
+                    Ecef = True
+                Case "-gleft"     ' Glue left tile boundary 
+                    filegLeft = args(k + 1)
+                    glueflg = True
+                Case "-gright"     ' Glue right tile boundary 
+                    filegRight = args(k + 1)
+                    glueflg = True
+                Case "-gtop"     ' Glue top tile boundary 
+                    filegTop = args(k + 1)
+                    glueflg = True
+                Case "-gbottom"     ' Glue bottom tile boundary 
+                    filegBottom = args(k + 1)
+                    glueflg = True
+                Case Else
+                    Console.WriteLine("Unknown command " & mycomm)
+                    Console.WriteLine("")
+                    Call Usage()
+                    'MsgBox("hmmm", vbOKOnly)
+                    Exit Sub
+            End Select
+        Next k
+        If (args.Count < 2) Then
+            Call Usage()
+            Exit Sub
+        End If
+
+
+
+        ' Create the reader in a Using statement and open input BTG file
+        Using reader As New BinaryReader(File.Open(filein, FileMode.Open))
+
+
+            Dim pos As Integer = 0
+            Dim length As Integer = reader.BaseStream.Length
+            Dim mydatetime As DateTime, printDate As String
+
+            '-----------------------------------------------------------------------
+            'Read input BTG file header
+            '-----------------------------------------------------------------------
+            BTG1.BTGver = reader.ReadUInt16
+            BTGv = BTG1.BTGver
+
+            BTG1.magnum = reader.ReadUInt16
+
+            BTG1.creation_time = reader.ReadUInt32      'Creation time *NIX like. Seconds from the epoch
+
+            mydatetime = UnixToDateTime(BTG1.creation_time)
+            printDate = mydatetime.ToShortDateString + " " + mydatetime.ToShortTimeString
+            Console.WriteLine("File header: BTG Vers.: " & BTG1.BTGver & " Magic Number: " & BTG1.magnum & " Creation time (*NIX): " & BTG1.creation_time & " Creation time (date time): " & printDate)
+
+            If (BTGv >= 10) Then
+                BTG1.numtopobj32 = reader.ReadUInt32    'Number of top level objects. UInt32 if BTG vers. =>10
+            Else
+                BTG1.numtopobj32 = reader.ReadUInt16    ' else Uint16
+            End If
+            Console.WriteLine("Numero oggetti top level:" & BTG1.numtopobj32)
+
+            'Main top level objects loop
+            '-------------------------------------------------------------------------
+
+            For j = 0 To BTG1.numtopobj32 - 1
+                Console.WriteLine("Top level object n:" & j)
+
+                '---------------------
+                'Lettura object header
+                '---------------------
+                otype = reader.ReadChar
+                intobjtype = Asc(otype)
+                Console.WriteLine("type: " & intobjtype & " " & ObjName(intobjtype))
+                If (BTGv >= 10) Then
+                    numprop = reader.ReadUInt32         'Number of object properties. Uint32 if BTG vers. => 10
+                Else
+                    numprop = reader.ReadUInt16         'else Uint16
+                End If
+                Console.WriteLine("numprop: " & numprop)
+                If (BTGv >= 10) Then
+                    numoel = reader.ReadUInt32          'Number of object element. Uint32 if BTG vers. => 10
+                Else
+                    numoel = reader.ReadUInt16          'else Uint16
+                End If
+                Console.WriteLine("numoel: " & numoel)
+                Console.WriteLine("TL object n: " & j & " type: " & intobjtype & " " & ObjName(intobjtype) & " numprop: " & numprop & " numoel: " & numoel)
+                'Fine Lettura top level object
+                '--------------------------------------------------------------------
+                TopLevelObjList.Add(New BTGOBJ(otype, numprop, numoel))
+
+                Select Case intobjtype
+                    Case 0                                      'Bounding sphere
+                        Call RBsphere(reader)
+                    Case 1                                      'Vertex List
+                        Call RVertex(reader)
+                    Case 2                                      'Normal List
+                        Call RNormal(reader)
+                    Case 3                                      'Texture coords list
+                        Call RTexture(reader)
+                    Case 4                                      'Color list
+                        Call RColor(reader)
+                    Case 9                                      'Points geom object 
+                        Call RPoints(reader)
+                    Case 10                                     'Individual triangles geom object
+                        Call RTriangleind(reader)
+                    Case 11                                     'deprecated no triangles strip found in tests
+                        MsgBox("Triangle strips", vbOKOnly)
+                    Case 12                                     'deprecated no triangles fans found in tests
+                        MsgBox("Triangle fans", vbOKOnly)
+                    Case Else                                   'Not existent object type. Misalignment
+                        MsgBox("Oops something going wrong! Exiting", vbOKOnly)
+                        Exit Sub
+                End Select
+
+            Next j
+            '-------------------------------------------------------------------
+
+            Console.WriteLine("Readed " & reader.BaseStream.Position & "bytes of " & reader.BaseStream.Length)
+            MsgBox("Readed " & reader.BaseStream.Position & " bytes of " & reader.BaseStream.Length, vbOKOnly)
+        End Using
+        '--------------------------------------------------------------------------
+        ' ECEF to LLH coords transformation
+        '--------------------------------------------------------------------------
+        If (Geod Or Bleft Or Bright Or Btop Or Bbottom Or glueflg) Then
+            Call ECEFtoGEOD()                                   'Transformation of vertex coordinates from ECEF (Earth Centered Earth Fixed x y z relative to Bounding Sphere center) to geodetic coordinates (lambda phi elev.)
+            'MsgBox("ECEFtoGEOD", vbOKOnly)
+        End If
+        
+        '--------------------------------------------------------------------------
+        ' Output boundary binary files
+        '--------------------------------------------------------------------------
+        If (Bleft Or Bright Or Btop Or Bbottom) Then
+            Call Outboundary()
+        End If
+        '--------------------------------------------------------------------------
+        ' Glue tile boundary
+        '--------------------------------------------------------------------------
+        If (glueflg) Then
+            Call glue()
+        End If
+        '--------------------------------------------------------------------------
+        ' Output routine for testing
+        '--------------------------------------------------------------------------
+        If (oscr) Then
+            GeomstreamWriter = New IO.StreamWriter(filescr, False) 'script file ACAD for geometric objs
+            Call Outscr()
+            GeomstreamWriter.WriteLine("")
+            GeomstreamWriter.Close()
+        End If
+        '--------------------------------------------------------------------------
+        ' LLH to ECEF coords transformation
+        '--------------------------------------------------------------------------
+        If (Ecef) Then
+            Call GEODtoECEF()                                   'Reverse transformation from geodetic to ECEF coordinates
+        End If
+        '--------------------------------------------------------------------------
+        'Output routine for binary btg format
+        '--------------------------------------------------------------------------
+        If (oBTG Or Geod) Then
+            Using writer As BinaryWriter = New BinaryWriter(File.Open(fileout, FileMode.Create))
+                Call Outbin(writer)
+            End Using
+        End If
+    End Sub
+
+    Public Function UnixToDateTime(ByVal strUnixTime As String) As DateTime
+
+        Dim nTimestamp As Double = strUnixTime
+        Dim nDateTime As System.DateTime = New System.DateTime(1970, 1, 1, 0, 0, 0, 0)
+        nDateTime = nDateTime.AddSeconds(nTimestamp)
+
+        Return nDateTime
+
+    End Function
+    Public Function DateTimetoUnix() As Integer
+        Dim uTime As Integer
+        uTime = (DateTime.Now - New DateTime(1970, 1, 1, 0, 0, 0)).TotalSeconds
+
+        Return uTime
+
+    End Function
+    Function ConvLocal(ByVal outstr As String) As String
+        Dim newstr As String
+        newstr = outstr.Replace(",", ".")
+        ConvLocal = newstr.Replace(";", ",")
+    End Function
+    Function Tilename(ByVal nomefile As String) As String
+        Dim k As Integer, mychar As Char
+        Dim kf As Integer
+        For k = 0 To nomefile.Length - 1
+            mychar = nomefile.Substring(k, 1)
+            If (mychar = ".") Then kf = k
+        Next
+        Tilename = nomefile.Substring(0, kf)
+    End Function
+    Function clockwise(ByVal vi1 As UInt32, ByVal vi2 As UInt32, ByVal vi3 As UInt32) As Boolean        ' To be eliminated invariant!!
+        Dim x1 As Double, y1 As Double, x2 As Double, y2 As Double, x3 As Double, y3 As Double
+        Dim Sarea As Double
+        x1 = VertexList(vi1).Vertx
+        y1 = VertexList(vi1).Verty
+        x2 = VertexList(vi2).Vertx
+        y2 = VertexList(vi2).Verty
+        x3 = VertexList(vi3).Vertx
+        y3 = VertexList(vi3).Verty
+        Sarea = y1 * (x2 - x3) + y2 * (x3 - x1) + y3 * (x1 - x2)
+        If (Sarea > 0.0) Then
+            clockwise = True
+        Else
+            clockwise = False
+        End If
+    End Function
+    Function clockwise2(ByVal vi1 As UInt32, ByVal vi2 As UInt32, ByVal vi3 As UInt32) As Boolean        ' To be eliminated invariant!!
+        Dim x(3) As Double, y(3) As Double, z(3) As Double
+        Dim xmin As Double, xmax As Double, ymin As Double, ymax As Double, zmin As Double, zmax As Double
+        Dim dx As Double, dy As Double, dz As Double
+        Dim Sarea As Double, Big As Double
+        Big = 10000000.0
+        x(1) = VertexList(vi1).Vertx
+        y(1) = VertexList(vi1).Verty
+        z(1) = VertexList(vi1).Vertz
+        x(2) = VertexList(vi2).Vertx
+        y(2) = VertexList(vi2).Verty
+        z(2) = VertexList(vi2).Vertz
+        x(3) = VertexList(vi3).Vertx
+        y(3) = VertexList(vi3).Verty
+        z(3) = VertexList(vi3).Vertz
+        xmin = Big
+        xmax = -Big
+        ymin = Big
+        ymax = -Big
+        zmin = Big
+        zmax = -Big
+        For j = 1 To 3
+            If (x(j) < xmin) Then xmin = x(j)
+            If (x(j) > xmax) Then xmax = x(j)
+            If (y(j) < ymin) Then ymin = y(j)
+            If (y(j) > ymax) Then ymax = y(j)
+            If (z(j) < zmin) Then zmin = z(j)
+            If (z(j) > xmax) Then zmax = z(j)
+        Next
+        dx = xmax - xmin
+        dy = ymax - ymin
+        dz = zmax - zmin
+
+        If ((dx < dy) And (dx < dz)) Then 'dy * dz wins
+            Sarea = z(1) * (y(2) - y(3)) + z(2) * (y(3) - y(1)) + z(3) * (y(1) - y(2))
+        End If
+        If ((dy < dx) And (dy < dz)) Then 'dx * dz wins
+            Sarea = z(1) * (x(2) - x(3)) + z(2) * (x(3) - x(1)) + z(3) * (x(1) - x(2))
+        End If
+        If ((dz < dx) And (dz < dy)) Then 'dx * dy wins
+            Sarea = y(1) * (x(2) - x(3)) + y(2) * (x(3) - x(1)) + y(3) * (x(1) - x(2))
+        End If
+
+        If (Sarea > 0.0) Then
+            clockwise2 = True
+        Else
+            clockwise2 = False
+        End If
+    End Function
+    Function CheckByte(ByVal Nc As Single) As Byte
+        Dim norc As Integer
+        norc = (Nc + 1) * 127.5
+        If (norc > 255) Then norc = 255
+        If (norc < 0) Then norc = 0
+        CheckByte = norc
+    End Function
+    Sub Usage()
+        Console.WriteLine("Usage:")
+        Console.WriteLine("<command> <parameter> ... <command> <parameter>")
+        Console.WriteLine("commands:")
+        Console.WriteLine("-i <input file>")
+        Console.WriteLine("")
+        Console.WriteLine("example: -i C:\TEST\3104954.btg")
+        Console.WriteLine("")
+        Console.WriteLine("-o <outputfile>")
+        Console.WriteLine("")
+        Console.WriteLine("example: -o C:\TEST\3104954mod.btg")
+        Console.WriteLine("")
+        Console.WriteLine("-oTB<side> <boundary geodetic coord>")
+        Console.WriteLine("")
+        Console.WriteLine("Could be -oTBright -oTBleft - oTBtop -oTBbottom ")
+        Console.WriteLine("example: -oTBleft 9.5 calculate and save Tile Boundary left at 9.5 degrees latitude")
+        Console.WriteLine("The output file has the same name of input file and suffix TBL or TBR or TBT or TBB")
+        Console.WriteLine("for Tile boundary left, right, top, or bottom and .dat extension")
+        Console.WriteLine("")
+        Console.WriteLine("-oGeod <outputfile> performs transformation of coordinates from ECEF to Geodetic and saves")
+        Console.WriteLine("")
+        Console.WriteLine("example: -oGeod C:\TEST\3104954geod.btg")
+        Console.WriteLine("")
+        Console.WriteLine("-oECEF <outputfile> performs transformation of coordinates from Geodetic to ECEF and saves")
+        Console.WriteLine("")
+        Console.WriteLine("example: -o C:\TEST\3104954ECEF.btg")
+        Console.WriteLine("")
+        Console.WriteLine("-g<side> <boundary file>")
+        Console.WriteLine("")
+        Console.WriteLine("Could be -gright -gleft -gtop -gbottom ")
+        Console.WriteLine("example: -gright C:\TEST\3104953TBR.dat glue tile to left tile")
+        Console.WriteLine("")
+        Console.WriteLine("-oscr <filename> Output btg file in autocad script (scr) format for visualization")
+        Console.WriteLine("")
+        Console.WriteLine("Press a key to exit")
+        Console.ReadKey()
+    End Sub
+    Sub RBsphere(ByRef reader)
+        '---------------------------------------------------
+        'Read Bounding sphere object
+        '---------------------------------------------------
+        If (numoel > 0) Then
+            With BSphere1
+                .BSbytesnum = reader.ReadUint32                      'Should be the correct bytes number, consider to insert a dummy byte reading loop to correct misalignment!
+
+                .BScenterx = reader.ReadDouble
+
+                .BScentery = reader.ReadDouble
+
+                .BScenterz = reader.ReadDouble
+
+                .BSradius = reader.ReadSingle
+                Console.WriteLine("BS bytes num: " & .BSbytesnum & " BS center x: " & .BScenterx & " BS center y: " & .BScentery & " BS center z: " & .BScenterz & " BS radius: " & .BSradius)
+            End With
+        End If
+
+    End Sub
+    Sub RVertex(ByRef reader)
+
+        Dim Vx As Single, Vy As Single, Vz As Single
+
+        '--------------------------------------------------------------------------
+        'Read Vertex object
+        '--------------------------------------------------------------------------
+
+        Vertexbytesnum = reader.ReadUint32
+
+        numvert = Vertexbytesnum / 12
+
+        For j = 0 To numvert - 1    'Loop lettura vertici
+            Vx = reader.ReadSingle
+            Vy = reader.ReadSingle
+            Vz = reader.ReadSingle
+
+            VertexList.Add(New VERTEX(Vx, Vy, Vz))
+        Next j
+
+        Console.WriteLine("Byte vertici: " & Vertexbytesnum & " Numero vertici: " & numvert)
+    End Sub
+    Sub RColor(ByRef reader)
+        '---------------------------------------------------------------------------
+        'Read Colors object
+        '---------------------------------------------------------------------------
+        Dim Cr As Single, Cg As Single, Cb As Single, Ca As Single
+
+        Colorbytesnum = reader.ReadUint32
+
+        numcol = Colorbytesnum / 16
+
+        For j = 0 To numcol - 1
+            Cr = reader.ReadSingle
+            Cg = reader.ReadSingle
+            Cb = reader.ReadSingle
+            Ca = reader.ReadSingle
+            ColorList.Add(New COLOR(Cr, Cg, Cb, Ca))
+        Next j
+        Console.WriteLine("Byte colori: " & Colorbytesnum & " Numero colori: " & numcol)
+    End Sub
+    Sub RNormal(ByRef reader)
+        Dim Nx As Byte, Ny As Byte, Nz As Byte
+        '---------------------------------
+        'Read Normals Object
+        '---------------------------------
+        Normalbytesnum = reader.ReadUint32
+
+        numnorm = Normalbytesnum / 3
+
+        For j = 0 To numnorm - 1
+            Nx = reader.ReadByte
+            Ny = reader.ReadByte
+            Nz = reader.ReadByte
+            NormalList.Add(New NORMAL(Nx, Ny, Nz))
+        Next j
+        Console.WriteLine("Normal Bytes n: " & Normalbytesnum & " Numero normali: " & numnorm)
+    End Sub
+    Sub RTexture(ByRef reader)
+
+        Dim Tx As Single, Ty As Single
+        '-------------------------------------------------------------------------
+        'Read Textures Object
+        '-------------------------------------------------------------------------
+
+        Texturebytesnum = reader.ReadUint32
+
+        numtexture = Texturebytesnum / 8
+
+        For j = 0 To numtexture - 1
+            Tx = reader.ReadSingle
+            Ty = reader.ReadSingle
+
+            TextureList.Add(New TEXTURE(Tx, Ty))
+        Next j
+        Console.WriteLine("Byte texture: " & Texturebytesnum & " Numero texture coords: " & numtexture)
+    End Sub
+    Sub RPoints(ByRef reader)
+        Dim PType1 As Char, intPType1 As Integer, pDatabytesnum1 As UInt32
+        Dim PType2 As Char, intPType2 As Integer, pDatabytesnum2 As UInt32, pDataByte As Byte
+        Dim Pname As String, Inchar As Char, i As Integer, k As Integer, m As Integer
+        Dim Vidx32 As UInt32, Nidx32 As UInt32, Cidx32 As UInt32, Tidx32 As UInt32
+        Dim Dummy As UInt32, Dumbyte As Byte, numBread As Integer
+        'Dim outstr As String
+
+        Dim _point As New PNTOBJ()
+
+        Dim _PointidxList As New List(Of POINTIDX)()
+        '------------------------------------------------------------------------------
+        'Read Point object
+        '------------------------------------------------------------------------------
+        PType1 = reader.ReadChar
+        intPType1 = Asc(PType1)
+        pDatabytesnum1 = reader.ReadUint32
+
+
+        Pname = ""
+        For i = 1 To pDatabytesnum1
+            Inchar = reader.ReadChar
+            Pname = Pname & Inchar
+        Next i
+
+        PType2 = reader.ReadChar
+        intPType2 = Asc(PType2)
+        pDatabytesnum2 = reader.ReadUint32
+        pDataByte = reader.ReadByte
+
+        _point.PropType1 = PType1
+        _point.PropDatabytesnum1 = pDatabytesnum1
+        _point.Material = Pname
+        _point.PropType2 = PType2
+        _point.PropDatabytesnum2 = pDatabytesnum2
+        _point.PropDatabyte = pDataByte
+        _point.PointidxList = New List(Of POINTIDX)()
+
+        Console.WriteLine(PropName(intPType1) & " Pname: " & Pname & " " & PropName(intPType2) & " pDatabytesnum2 " & pDatabytesnum2 & " Propdatabyte: " & pDataByte)
+
+        Vidx32 = 0
+        Nidx32 = 0
+        Cidx32 = 0
+        Tidx32 = 0
+
+        If (BTGv >= 10) Then              ' Reading into 32 bit integers values 32/16 bit integers (Mind for writings)
+
+            'lettura tuple parallela (32 bit indexes)
+            '---------------------------------------------------
+            For k = 0 To numoel - 1
+                Dummy = reader.ReadUInt32
+                numBread = 0
+                Dim _idx As New POINTIDX
+                If (1 And pDataByte) Then
+                    Vidx32 = reader.ReadUint32
+                    numBread = numBread + 4
+                End If
+                If (2 And pDataByte) Then
+                    Nidx32 = reader.ReadUint32
+                    numBread = numBread + 4
+                End If
+                If (4 And pDataByte) Then
+                    Cidx32 = reader.ReadUint32
+                    numBread = numBread + 4
+                End If
+                If (8 And pDataByte) Then
+                    Tidx32 = reader.ReadUint32
+                    numBread = numBread + 4
+                End If
+                For m = 0 To Dummy - numBread - 1   'Read bytes to realign seek pos
+                    Dumbyte = reader.ReadByte
+                Next m
+
+                _idx.Vertidx32 = Vidx32
+                _idx.Normidx32 = Nidx32
+                _idx.Colidx32 = Cidx32
+                _idx.Textidx32 = Tidx32
+                _point.PointidxList.Add(_idx)
+
+            Next k
+            'fine lettura tuple parallela (32 bit indexes)
+            '--------------------------------------------------
+
+            PntobjList.Add(_point)
+        Else
+            'lettura tuple parallela (16 bit indexes)
+            '---------------------------------------------------
+
+            For k = 0 To numoel - 1
+                Dummy = reader.ReadUInt32
+                numBread = 0
+                Dim _idx As New POINTIDX
+                If (1 And pDataByte) Then
+                    Vidx32 = reader.ReadUint16
+                    numBread = numBread + 2
+                End If
+                If (2 And pDataByte) Then
+                    Nidx32 = reader.ReadUint16
+                    numBread = numBread + 2
+                End If
+                If (4 And pDataByte) Then
+                    Cidx32 = reader.ReadUint16
+                    numBread = numBread + 2
+                End If
+                If (8 And pDataByte) Then
+                    Tidx32 = reader.ReadUint16
+                    numBread = numBread + 2
+                End If
+                For m = 0 To Dummy - numBread - 1   'Read bytes to realign seek pos
+                    Dumbyte = reader.ReadByte
+                Next m
+                _idx.Vertidx32 = Vidx32
+                _idx.Normidx32 = Nidx32
+                _idx.Colidx32 = Cidx32
+                _idx.Textidx32 = Tidx32
+                _point.PointidxList.Add(_idx)
+            Next k
+            'fine lettura tuple parallela (16 bit indexes)
+            '--------------------------------------------------
+
+            PntobjList.Add(_point)
+        End If
+
+        Console.WriteLine("Readed " & numoel & " index records and " & _point.PointidxList.Count & " points")
+    End Sub
+    Sub RTriangleind(ByRef reader)
+        Dim PType1 As Char, intPType1 As Integer, pDatabytesnum1 As UInt32
+        Dim PType2 As Char, intPType2 As Integer, pDatabytesnum2 As UInt32, pDataByte As Byte
+        Dim Pname As String, Inchar As Char, i As Integer, k As Integer, m As Integer
+        Dim Vidx32 As UInt32, Nidx32 As UInt32, Cidx32 As UInt32, Tidx32 As UInt32
+        'Dim k1 As Integer, k2 As Integer, k3 As Integer
+
+        Dim Dummy As UInt32, numBread As Integer
+
+        Dim _itri As New ITRIOBJ()
+
+        Dim _ItriidxList As New List(Of ITRIIDX)()
+        '------------------------------------------------------------------------------
+        'Read individual triangles object
+        '------------------------------------------------------------------------------
+        PType1 = reader.ReadChar
+        intPType1 = Asc(PType1)
+
+        pDatabytesnum1 = reader.ReadUint32
+
+        Pname = ""
+        For i = 1 To pDatabytesnum1
+            Inchar = reader.ReadChar
+            Pname = Pname & Inchar
+        Next i
+
+        PType2 = reader.ReadChar
+        intPType2 = Asc(PType2)
+
+        pDatabytesnum2 = reader.ReadUint32
+
+        pDataByte = reader.ReadByte
+
+        _itri.PropType1 = PType1
+        _itri.PropDatabytesnum1 = pDatabytesnum1
+        _itri.Material = Pname
+        _itri.PropType2 = PType2
+        _itri.PropDatabytesnum2 = pDatabytesnum2
+        _itri.PropDatabyte = pDataByte
+        _itri.ItriidxList = New List(Of ITRIIDX)()
+
+        Console.WriteLine(PropName(intPType1) & " Pname: " & Pname & " " & PropName(intPType2) & " pDatabytesnum2 " & pDatabytesnum2 & " Propdatabyte: " & pDataByte)
+
+        Vidx32 = 0
+        Nidx32 = 0
+        Cidx32 = 0
+        Tidx32 = 0
+
+        If (BTGv >= 10) Then              ' better to call 2 different subroutines for reading tuples !!!
+
+            'lettura tuple parallela (32 bit indices)
+            '---------------------------------------------------
+            For k = 0 To numoel - 1
+                Dummy = reader.ReadUInt32
+                numBread = 0
+
+                For m = 0 To 2
+                    Dim _idx As New ITRIIDX
+                    If (1 And pDataByte) Then
+                        Vidx32 = reader.ReadUint32
+                        numBread = numBread + 4
+                    End If
+                    If (2 And pDataByte) Then
+                        Nidx32 = reader.ReadUint32
+                        numBread = numBread + 4
+                    End If
+                    If (4 And pDataByte) Then
+                        Cidx32 = reader.ReadUint32
+                        numBread = numBread + 4
+                    End If
+                    If (8 And pDataByte) Then
+                        Tidx32 = reader.ReadUint32
+                        numBread = numBread + 4
+                    End If
+
+                    _idx.Vertidx32 = Vidx32
+                    _idx.Normidx32 = Nidx32
+                    _idx.Colidx32 = Cidx32
+                    _idx.Textidx32 = Tidx32
+                    _itri.ItriidxList.Add(_idx)
+
+                Next m
+
+            Next k
+            'fine lettura tuple parallela 
+            '--------------------------------------------------
+            ItriobjList.Add(_itri)
+
+        Else
+
+            'lettura tuple parallela (16 bit indices)
+            '---------------------------------------------------
+            For k = 0 To numoel - 1   'ok!!!
+                Dummy = reader.ReadUInt32
+                numBread = 0
+
+                For m = 0 To 2
+                    Dim _idx As New ITRIIDX
+                    If (1 And pDataByte) Then
+                        Vidx32 = reader.ReadUint16
+                        numBread = numBread + 2
+                    End If
+                    If (2 And pDataByte) Then
+                        Nidx32 = reader.ReadUint16
+                        numBread = numBread + 2
+                    End If
+                    If (4 And pDataByte) Then
+                        Cidx32 = reader.ReadUint16
+                        numBread = numBread + 2
+                    End If
+                    If (8 And pDataByte) Then
+                        Tidx32 = reader.ReadUint16
+                        numBread = numBread + 2
+                    End If
+                    _idx.Vertidx32 = Vidx32
+                    _idx.Normidx32 = Nidx32
+                    _idx.Colidx32 = Cidx32
+                    _idx.Textidx32 = Tidx32
+                    _itri.ItriidxList.Add(_idx)
+
+
+                Next m
+
+            Next k
+            'fine lettura tuple parallela (16 bit indices)
+            '--------------------------------------------------
+            ItriobjList.Add(_itri)
+
+        End If
+
+        Console.WriteLine("Readed " & numoel & " triangle index records and " & _itri.ItriidxList.Count & " triangle index count")
+
+    End Sub
+    Sub Outscr() 'Routine for writing readed points and triangles in ACAD script format. Just to test
+        Dim k1 As Integer, k2 As Integer, k3 As Integer, outstr As String
+        Dim numoel As Integer
+        '----------------------------------------------------------
+        'Write points (AutoCAD script text format)
+        '----------------------------------------------------------
+
+        MsgBox("numero oggetti punto: " & PntobjList.Count, vbOKOnly)
+        For Each pobj As PNTOBJ In PntobjList
+
+            GeomstreamWriter.WriteLine("-layer N " & pobj.Material & " R " & pobj.Material) 'Create new ACAD current layer for point primitives 
+            GeomstreamWriter.WriteLine()
+
+            For Each idx As POINTIDX In pobj.PointidxList
+                k1 = idx.Vertidx32
+                outstr = "PUNTO " & VertexList(k1).Vertx & ";" & VertexList(k1).Verty & ";" & VertexList(k1).Vertz
+                outstr = ConvLocal(outstr)                                                                              'Use only if you need to convert your local punct signs 
+                GeomstreamWriter.WriteLine(outstr)
+
+            Next
+        Next
+
+        '---------------------------------------------------------
+        'Write individual triangles (AutoCAD script text format)
+        '---------------------------------------------------------
+
+        For Each tri In ItriobjList
+
+            GeomstreamWriter.WriteLine("-layer N " & tri.Material & " R " & tri.Material) 'Create new ACAD current layer for triangles primitives 
+            GeomstreamWriter.WriteLine()
+
+            numoel = tri.ItriidxList.Count / 3
+
+            For k = 0 To (numoel - 1)
+                k1 = tri.ItriidxList(3 * k).Vertidx32
+                k2 = tri.ItriidxList(3 * k + 1).Vertidx32
+                k3 = tri.ItriidxList(3 * k + 2).Vertidx32
+
+                outstr = "_LINE " & VertexList(k1).Vertx & ";" & VertexList(k1).Verty & ";" & VertexList(k1).Vertz & " " _
+                                                   & VertexList(k2).Vertx & ";" & VertexList(k2).Verty & ";" & VertexList(k2).Vertz & " " _
+                                                   & VertexList(k3).Vertx & ";" & VertexList(k3).Verty & ";" & VertexList(k3).Vertz & " " _
+                                                   & "_Close"
+                outstr = ConvLocal(outstr)                  'Use only if you need to convert your local punct signs
+                GeomstreamWriter.WriteLine(outstr)
+            Next k
+        Next
+    End Sub
+    Sub Outbin(ByRef writer)
+        Dim numtopobj16 As UInt16
+        Dim myunixtime As Integer
+        Dim numobjprop16 As UInt16
+        Dim numobjel16 As UInt16
+        Dim nump As Integer, numt As Integer ' number of point and triangle objects
+
+        Console.WriteLine("Writing BTG output file...")
+        nump = 0
+        numt = 0
+        '-----------------------------------------------------------------------
+        'Write output BTG file header
+        '-----------------------------------------------------------------------
+        writer.Write(BTGv)
+        writer.Write(BTG1.magnum)
+        myunixtime = DateTimetoUnix()
+        writer.Write(myunixtime)
+        If (BTGv >= 10) Then
+            writer.Write(BTG1.numtopobj32)
+        Else
+            numtopobj16 = BTG1.numtopobj32
+            writer.Write(numtopobj16)
+        End If
+
+        ' Toplevel Objects main loop
+        For Each _obj In TopLevelObjList
+
+            'Scrittura object header
+            '---------------------
+            writer.Write(_obj.objtype)
+            intobjtype = Asc(_obj.objtype)
+            If (intobjtype = 10) Then        'Ind. Triangle numobjet element calc.
+                'MsgBox("n triangoli prima " & _obj.numobjel32, vbOKOnly)
+                _obj.numobjel32 = ItriobjList(numt).ItriidxList.Count / 3
+                'MsgBox("n triangoli dopo " & _obj.numobjel32, vbOKOnly)
+            End If
+
+            If (BTGv >= 10) Then
+                writer.Write(_obj.numobjprop32)
+                writer.Write(_obj.numobjel32)
+            Else
+                numobjprop16 = _obj.numobjprop32
+                numobjel16 = _obj.numobjel32
+                writer.Write(numobjprop16)
+                writer.Write(numobjel16)
+            End If
+
+
+
+            Select Case intobjtype
+                Case 0 'Bounding sphere
+                    Call WBsphere(writer)
+                Case 1 'Vertex List
+                    Call WVertex(writer)
+                Case 2 'Normal List
+                    Call WNormal(writer)
+                Case 3 'Texture coords list
+                    Call WTexture(writer)
+                Case 4 'Color list
+                    Call WColor(writer)
+                Case 9
+                    Call WPoints(writer, nump)
+                Case 10
+                    Call WTriangleind(writer, numt)
+                Case 11                                     'deprecated no triangles strip found in tests
+                    MsgBox("Triangle strips", vbOKOnly)
+                Case 12                                     'deprecated no triangles fans found in tests
+                    MsgBox("Triangle fans", vbOKOnly)
+                Case Else
+                    MsgBox("Oops something going wrong! Exiting", vbOKOnly)
+                    Exit Sub
+            End Select
+            'Fine scrittura top level object
+            '--------------------------------------------------------------------
+        Next
+    End Sub
+    Sub WBsphere(ByRef writer)
+        'Write Bounding sphere object
+        '---------------------------------------------------
+
+        With BSphere1
+            writer.Write(.BSbytesnum)                      'Should be the correct bytes number, consider to insert a dummy byte reading loop to correct misalignment!
+            writer.Write(.BScenterx)
+            writer.Write(.BScentery)
+            writer.Write(.BScenterz)
+            writer.Write(.BSradius)
+        End With
+
+    End Sub
+    Sub WVertex(ByRef writer)
+        '--------------------------------------------------------------------------
+        'Write Vertex object
+        '--------------------------------------------------------------------------
+        'MsgBox("numero byte vertici " & Vertexbytesnum & " Vertexlist.Count = " & VertexList.Count)
+        Vertexbytesnum = VertexList.Count * 12
+        writer.Write(Vertexbytesnum)
+
+        For Each v In VertexList        'Loop scrittura vertici
+            writer.Write(v.Vertx)
+            writer.Write(v.Verty)
+            writer.Write(v.Vertz)
+        Next
+
+    End Sub
+    Sub WNormal(ByRef writer)
+        '-----------------------------------------------
+        'Write Normals Object
+        '-----------------------------------------------
+        'MsgBox("numero byte normali " & Normalbytesnum & " NormalList.Count = " & NormalList.Count)
+        Normalbytesnum = NormalList.Count * 3
+        writer.Write(Normalbytesnum)
+
+        For Each n In NormalList        'Loop scrittura normali
+            writer.Write(n.Normx)
+            writer.Write(n.Normy)
+            writer.Write(n.Normz)
+        Next
+
+    End Sub
+    Sub WTexture(ByRef writer)
+        'Write Textures Object
+        '-------------------------------------------------------------------------
+
+        'MsgBox("numero byte texture " & Texturebytesnum & " TextureList.Count = " & TextureList.Count)
+        Texturebytesnum = TextureList.Count * 8
+        writer.Write(Texturebytesnum)
+
+        For Each t In TextureList        'Loop scrittura texture
+            writer.Write(t.Textx)
+            writer.Write(t.Texty)
+        Next
+
+    End Sub
+    Sub WColor(ByRef writer)
+        'Write Colors object
+        '---------------------------------------------------------------------------
+
+        'MsgBox("numero byte colori " & Colorbytesnum & " ColorList.Count = " & ColorList.Count)
+        Colorbytesnum = ColorList.Count * 16
+        writer.Write(Colorbytesnum)
+
+        For Each c In ColorList        'Loop scrittura Color
+            writer.Write(c.Colred)
+            writer.Write(c.Colgreen)
+            writer.Write(c.Colblue)
+            writer.Write(c.Colalpha)
+        Next
+
+    End Sub
+    Sub WPoints(ByRef writer, ByRef nump)
+        Dim Dummy As UInt32, pDataByte As Byte, Pname As String
+        Dim Vidx16 As UInt16, Nidx16 As UInt16, Cidx16 As UInt16, Tidx16 As UInt16
+        Dim k As Integer, bchar As Char
+
+        'write current (nump) PNTOBJ data
+
+        writer.Write(PntobjList(nump).PropType1)
+        writer.Write(PntobjList(nump).PropDatabytesnum1)
+        Pname = PntobjList(nump).Material
+        For k = 1 To PntobjList(nump).PropDatabytesnum1
+            bchar = Mid(Pname, k, 1)
+            writer.Write(bchar)
+        Next
+
+        writer.Write(PntobjList(nump).PropType2)
+        writer.Write(PntobjList(nump).PropDatabytesnum2)
+        writer.Write(PntobjList(nump).PropDatabyte)
+
+        ' determinazione valore byte da scrivere
+
+        pDataByte = PntobjList(nump).PropDatabyte
+        Dummy = 0
+        If (BTGv >= 10) Then
+            If (1 And pDataByte) Then
+                Dummy = Dummy + 4
+            End If
+            If (2 And pDataByte) Then
+                Dummy = Dummy + 4
+            End If
+            If (4 And pDataByte) Then
+                Dummy = Dummy + 4
+            End If
+            If (8 And pDataByte) Then
+                Dummy = Dummy + 4
+            End If
+        Else
+            If (1 And pDataByte) Then
+                Dummy = Dummy + 2
+            End If
+            If (2 And pDataByte) Then
+                Dummy = Dummy + 2
+            End If
+            If (4 And pDataByte) Then
+                Dummy = Dummy + 2
+            End If
+            If (8 And pDataByte) Then
+                Dummy = Dummy + 2
+            End If
+        End If
+
+        If (BTGv >= 10) Then              ' Writing into 32/16 bit integers index values 
+
+            'scrittura tuple parallela (32 bit indexes)
+            '---------------------------------------------------
+            For Each _i In PntobjList(nump).PointidxList
+                writer.Write(Dummy)
+                If (1 And pDataByte) Then
+                    writer.Write(_i.Vertidx32)
+                End If
+                If (2 And pDataByte) Then
+                    writer.Write(_i.Normidx32)
+                End If
+                If (4 And pDataByte) Then
+                    writer.Write(_i.Colidx32)
+                End If
+                If (8 And pDataByte) Then
+                    writer.Write(_i.Textidx32)
+                End If
+            Next
+        Else
+            'scrittura tuple parallela (16 bit indexes)
+            '---------------------------------------------------
+            For Each _i In PntobjList(nump).PointidxList
+                writer.Write(Dummy)
+                If (1 And pDataByte) Then
+                    Vidx16 = _i.Vertidx32
+                    writer.Write(Vidx16)
+                End If
+                If (2 And pDataByte) Then
+                    Nidx16 = _i.Normidx32
+                    writer.Write(Nidx16)
+                End If
+                If (4 And pDataByte) Then
+                    Cidx16 = _i.Colidx32
+                    writer.Write(Cidx16)
+                End If
+                If (8 And pDataByte) Then
+                    Tidx16 = _i.Textidx32
+                    writer.Write(Tidx16)
+                End If
+            Next
+        End If
+
+        nump = nump + 1
+
+    End Sub
+    Sub WTriangleind(ByRef writer, ByRef numt)
+        Dim Dummy As UInt32, pDataByte As Byte, Pname As String
+        Dim Vidx16 As UInt16, Nidx16 As UInt16, Cidx16 As UInt16, Tidx16 As UInt16
+        Dim k As Integer, bchar As Char, kw As Integer
+
+        'write current (numt) ITRIOBJ data
+
+        writer.Write(ItriobjList(numt).PropType1)
+        writer.Write(ItriobjList(numt).PropDatabytesnum1)
+        Pname = ItriobjList(numt).Material
+        For k = 1 To ItriobjList(numt).PropDatabytesnum1
+            bchar = Mid(Pname, k, 1)
+            writer.Write(bchar)
+        Next
+
+        writer.Write(ItriobjList(numt).PropType2)
+        writer.Write(ItriobjList(numt).PropDatabytesnum2)
+        writer.Write(ItriobjList(numt).PropDatabyte)
+
+        ' determinazione valore byte da scrivere
+
+        pDataByte = ItriobjList(numt).PropDatabyte
+        Dummy = 0
+        If (BTGv >= 10) Then
+            If (1 And pDataByte) Then
+                Dummy = Dummy + 4
+            End If
+            If (2 And pDataByte) Then
+                Dummy = Dummy + 4
+            End If
+            If (4 And pDataByte) Then
+                Dummy = Dummy + 4
+            End If
+            If (8 And pDataByte) Then
+                Dummy = Dummy + 4
+            End If
+        Else
+            If (1 And pDataByte) Then
+                Dummy = Dummy + 2
+            End If
+            If (2 And pDataByte) Then
+                Dummy = Dummy + 2
+            End If
+            If (4 And pDataByte) Then
+                Dummy = Dummy + 2
+            End If
+            If (8 And pDataByte) Then
+                Dummy = Dummy + 2
+            End If
+        End If
+        Dummy = Dummy * 3
+
+        If (BTGv >= 10) Then              ' Writing into 32/16 bit integers index values 
+
+            'scrittura tuple parallela (32 bit indexes)
+            '---------------------------------------------------
+            kw = 0
+            For Each _i In ItriobjList(numt).ItriidxList
+                If ((kw Mod 3) = 0) Then
+                    writer.Write(Dummy)
+                End If
+                kw = kw + 1
+                If (1 And pDataByte) Then
+                    writer.Write(_i.Vertidx32)
+                End If
+                If (2 And pDataByte) Then
+                    writer.Write(_i.Normidx32)
+                End If
+                If (4 And pDataByte) Then
+                    writer.Write(_i.Colidx32)
+                End If
+                If (8 And pDataByte) Then
+                    writer.Write(_i.Textidx32)
+                End If
+            Next
+        Else
+            'scrittura tuple parallela (16 bit indexes)
+            '---------------------------------------------------
+            For Each _i In ItriobjList(numt).ItriidxList
+                If ((kw Mod 3) = 0) Then
+                    writer.Write(Dummy)
+                End If
+                kw = kw + 1
+                If (1 And pDataByte) Then
+                    Vidx16 = _i.Vertidx32
+                    writer.Write(Vidx16)
+                End If
+                If (2 And pDataByte) Then
+                    Nidx16 = _i.Normidx32
+                    writer.Write(Nidx16)
+                End If
+                If (4 And pDataByte) Then
+                    Cidx16 = _i.Colidx32
+                    writer.Write(Cidx16)
+                End If
+                If (8 And pDataByte) Then
+                    Tidx16 = _i.Textidx32
+                    writer.Write(Tidx16)
+                End If
+            Next
+        End If
+
+        numt = numt + 1
+
+    End Sub
+    Sub ECEFtoGEOD()
+        '---------------------------------------------------------------------------------------
+        'This routine performs transformation from ECEF (Earth Centered Earth Fixed) coordinates
+        ' system to Geodetic (lat lon height) system using WGS84 ellipsoid datum using Ferrari's  
+        ' closed form solution.
+        '---------------------------------------------------------------------------------------
+        Dim Xe As Double, Ye As Double, Ze As Double
+        'WGS84 datum
+        Dim a As Double = 6378137.0
+        Dim a2 As Double
+        Dim b As Double = 6356752.3142
+        Dim b2 As Double
+        'Dim e As Double
+        Dim e2 As Double = 0.00669437999014
+        'Ferrari's solution variables
+        Dim r As Double
+        Dim r2 As Double
+        Dim ep2 As Double
+        Dim F As Double
+        Dim G As Double
+        Dim c As Double
+        Dim s As Double
+        Dim P As Double
+        Dim Q As Double
+        Dim r0 As Double
+        Dim U As Double
+        Dim V As Double
+        Dim z0 As Double
+        Dim h As Double
+        Dim fi As Double
+        Dim lam As Double
+
+        Dim big As Double
+        Dim lammin As Double
+        Dim lammax As Double
+        Dim fimin As Double, fimax As Double, hmin As Double, hmax As Double
+
+        Console.WriteLine("Converting coords from ECEF to Geodetic")
+        a2 = a * a
+        b2 = b * b
+        big = 10000000000
+        lammin = big
+        lammax = -big
+        fimin = big
+        fimax = -big
+        hmin = big
+        hmax = -big
+
+        'main loop on vertex coordinates
+        For Each _v As VERTEX In VertexList
+            Xe = _v.Vertx + BSphere1.BScenterx
+            Ye = _v.Verty + BSphere1.BScentery
+            Ze = _v.Vertz + BSphere1.BScenterz
+
+            r2 = Xe * Xe + Ye * Ye
+            r = Math.Sqrt(r2)
+            ep2 = (a2 - b2) / b2
+            F = 54 * b2 * Ze * Ze
+            G = r2 + (1 - e2) * Ze * Ze - e2 * (a2 - b2)
+            c = e2 * e2 * F * r2 / (G * G * G)
+            s = Math.Pow(1 + c + Math.Sqrt(c * c + 2 * c), 1 / 3)
+            P = F / (3 * Math.Pow(s + 1 / s + 1, 2) * G * G)
+            Q = Math.Sqrt(1 + 2 * e2 * e2 * P)
+            r0 = -(P * e2 * r) / (1 + Q) + Math.Sqrt(a2 * (1 + 1 / Q) / 2 - P * (1 - e2) * Ze * Ze / (Q * (1 + Q)) - P * r2 / 2)
+            U = Math.Sqrt((r - e2 * r0) * (r - e2 * r0) + Ze * Ze)
+            V = Math.Sqrt((r - e2 * r0) * (r - e2 * r0) + (1 - e2) * Ze * Ze)
+            z0 = b2 * Ze / (a * V)
+            h = U * (1 - b2 / (a * V))
+            fi = Math.Atan((Ze + ep2 * z0) / r) * (180 / Math.PI)
+            lam = Math.Atan2(Ye, Xe) * (180 / Math.PI)
+
+
+            If (fi < fimin) Then fimin = fi
+            If (fi > fimax) Then fimax = fi
+            If (lam < lammin) Then lammin = lam
+            If (lam > lammax) Then lammax = lam
+            If (h < hmin) Then hmin = h
+            If (h > hmax) Then hmax = h
+
+            _v.Vertx = lam
+            _v.Verty = fi
+            _v.Vertz = h
+        Next
+        Console.Write("fi min max: " & fimin & " " & fimax)
+        Console.Write("lam min max: " & lammin & " " & lammax)
+        Console.Write("h min max: " & hmin & " " & hmax)
+        MsgBox("fine", vbOKOnly)
+    End Sub
+    Sub GEODtoECEF()
+        '---------------------------------------------------------------------------------------
+        ' This routine performs transormation from Geodetic (lat lon height) coordinates system 
+        ' to ECEF (Earth Centered Earth Fixed) system using WGS84 ellipsoid datum and litterature  
+        ' formulas ( B. Hofmann-Wellenhof; H. Lichtenegger; J. Collins. GPS - theory and practice)
+        '----------------------------------------------------------------------------------------
+        Dim Xe As Double, Ye As Double, Ze As Double
+        'WGS84 datum
+        Dim a As Double = 6378137.0
+        'Dim a2 As Double
+        Dim b As Double = 6356752.3142
+        'Dim b2 As Double
+        'Dim e As Double
+        Dim e2 As Double = 0.00669437999014
+
+        Dim h As Double
+        Dim fi As Double, firad As Double
+        Dim lam As Double, lamrad As Double
+
+        Dim Nfi As Double
+
+        Console.WriteLine("Converting coords from Geodetic to ECEF")
+        For Each _v As VERTEX In VertexList
+            lam = _v.Vertx
+            fi = _v.Verty
+            h = _v.Vertz
+            lamrad = lam * (Math.PI / 180)
+            firad = fi * (Math.PI / 180)
+
+            Nfi = a / Math.Sqrt(1 - e2 * Math.Sin(firad) * Math.Sin(firad))
+
+            Xe = (Nfi + h) * Math.Cos(firad) * Math.Cos(lamrad)
+            Ye = (Nfi + h) * Math.Cos(firad) * Math.Sin(lamrad)
+            Ze = (b * b / (a * a) * Nfi + h) * Math.Sin(firad)
+
+            _v.Vertx = Xe - BSphere1.BScenterx
+            _v.Verty = Ye - BSphere1.BScentery
+            _v.Vertz = Ze - BSphere1.BScenterz
+
+        Next
+    End Sub
+    Sub Outboundary()
+        Dim h As Double, fi As Double, lam As Double
+        Dim nometile As String
+        Dim numbvert As Integer
+        'Dim _bcoord As New BCOORD
+        Dim BcoordLeftList As New List(Of BCOORD)()
+        Dim BcoordRightList As New List(Of BCOORD)()
+        Dim BcoordTopList As New List(Of BCOORD)()
+        Dim BcoordBottomList As New List(Of BCOORD)()
+        'Dim BoundstreamWriter As IO.StreamWriter
+        nometile = Tilename(filein)
+
+        If (Bleft) Then
+
+            For Each _v As VERTEX In VertexList
+                lam = _v.Vertx
+                fi = _v.Verty
+                h = _v.Vertz
+                If (Math.Abs(lam - TBleft) < 0.0001) Then
+                    Dim _bcoord As New BCOORD
+                    _bcoord.xc = fi
+                    _bcoord.yc = h
+                    BcoordLeftList.Add(_bcoord)
+                End If
+            Next
+            MsgBox("Punti bordo sinistro: " & BcoordLeftList.Count, vbOKOnly)
+
+            BcoordLeftList.Sort(Function(x, y) x.xc.CompareTo(y.xc))
+            numbvert = BcoordLeftList.Count
+
+            Using wrbound As BinaryWriter = New BinaryWriter(File.Open(nometile & "TBL.dat", FileMode.Create))
+                wrbound.Write(numbvert)
+                wrbound.Write("fi")
+                wrbound.Write(TBleft)
+                For Each _bc As BCOORD In BcoordLeftList
+                    wrbound.Write(_bc.xc)
+                    wrbound.Write(_bc.yc)
+                Next
+
+            End Using
+        End If
+        If (Bright) Then
+            For Each _v As VERTEX In VertexList
+                lam = _v.Vertx
+                fi = _v.Verty
+                h = _v.Vertz
+                If (Math.Abs(lam - TBright) < 0.0001) Then
+                    Dim _bcoord As New BCOORD
+                    _bcoord.xc = fi
+                    _bcoord.yc = h
+                    BcoordRightList.Add(_bcoord)
+                End If
+            Next
+            MsgBox("Punti bordo destro: " & BcoordRightList.Count, vbOKOnly)
+            BcoordRightList.Sort(Function(x, y) x.xc.CompareTo(y.xc))
+            numbvert = BcoordRightList.Count
+            Using wrbound As BinaryWriter = New BinaryWriter(File.Open(nometile & "TBR.dat", FileMode.Create))
+                wrbound.Write(numbvert)
+                wrbound.Write("fi")
+                wrbound.Write(TBright)
+
+                For Each _bc As BCOORD In BcoordRightList
+                    wrbound.Write(_bc.xc)
+                    wrbound.Write(_bc.yc)
+                Next
+
+            End Using
+        End If
+        If (Btop) Then
+
+            For Each _v As VERTEX In VertexList
+                lam = _v.Vertx
+                fi = _v.Verty
+                h = _v.Vertz
+                If (Math.Abs(fi - TBtop) < 0.0001) Then
+                    Dim _bcoord As New BCOORD
+                    _bcoord.xc = lam
+                    _bcoord.yc = h
+                    BcoordTopList.Add(_bcoord)
+                End If
+            Next
+            MsgBox("Punti bordo superiore: " & BcoordTopList.Count, vbOKOnly)
+            BcoordTopList.Sort(Function(x, y) x.xc.CompareTo(y.xc))
+
+            numbvert = BcoordTopList.Count
+
+            Using wrbound As BinaryWriter = New BinaryWriter(File.Open(nometile & "TBT.dat", FileMode.Create))
+                wrbound.Write(numbvert)
+                wrbound.Write("lam")
+                wrbound.Write(TBtop)
+                For Each _bc As BCOORD In BcoordTopList
+                    wrbound.Write(_bc.xc)
+                    wrbound.Write(_bc.yc)
+                Next
+            End Using
+        End If
+        If (Bbottom) Then
+
+            For Each _v As VERTEX In VertexList
+                lam = _v.Vertx
+                fi = _v.Verty
+                h = _v.Vertz
+                If (Math.Abs(fi - TBbottom) < 0.0001) Then
+                    Dim _bcoord As New BCOORD
+                    _bcoord.xc = lam
+                    _bcoord.yc = h
+                    BcoordBottomList.Add(_bcoord)
+                End If
+            Next
+            MsgBox("Punti bordo inferiore: " & BcoordBottomList.Count, vbOKOnly)
+            BcoordBottomList.Sort(Function(x, y) x.xc.CompareTo(y.xc))
+
+            numbvert = BcoordBottomList.Count
+
+            Using wrbound As BinaryWriter = New BinaryWriter(File.Open(nometile & "TBB.dat", FileMode.Create))
+                wrbound.Write(numbvert)
+                wrbound.Write("lam")
+                wrbound.Write(TBbottom)
+                For Each _bc As BCOORD In BcoordBottomList
+                    wrbound.Write(_bc.xc)
+                    wrbound.Write(_bc.yc)
+                Next
+            End Using
+        End If
+    End Sub
+    Sub glue()
+        '---------------------------------------------------------------------------
+        ' Load boundary objects from files
+        '---------------------------------------------------------------------------
+
+        Dim _bobjleft As New BOUNDOBJ
+        Dim _bobjright As New BOUNDOBJ
+        Dim _bobjtop As New BOUNDOBJ
+        Dim _bobjbottom As New BOUNDOBJ
+        'Dim BcoordLeftList As New List(Of BCOORD)()
+
+        Console.WriteLine("Glue")
+        BTGv = 10                           '! change to vers. 10 to add more triangles
+        If (filegLeft <> "") Then
+            Using rbound As New BinaryReader(File.Open(filegLeft, FileMode.Open))
+
+                _bobjleft.NumV = rbound.ReadInt32
+                _bobjleft.BorderType = rbound.ReadString
+                _bobjleft.BorderCoord = rbound.ReadDouble
+                _bobjleft.BcoordList = New List(Of BCOORD)()
+                For j = 1 To _bobjleft.NumV
+                    'MsgBox(j, vbOKOnly)
+                    Dim _bc As New BCOORD
+                    _bc.xc = rbound.ReadDouble
+                    _bc.yc = rbound.ReadDouble
+                    _bobjleft.BcoordList.Add(_bc)
+                Next
+            End Using
+            
+            Call Gluetri(_bobjleft)
+
+        End If
+        If (filegRight <> "") Then
+            Using rbound As New BinaryReader(File.Open(filegRight, FileMode.Open))
+
+                _bobjright.NumV = rbound.ReadInt32
+                _bobjright.BorderType = rbound.ReadString
+                _bobjright.BorderCoord = rbound.ReadDouble
+                _bobjright.BcoordList = New List(Of BCOORD)()
+                For j = 1 To _bobjright.NumV
+                    Dim _bc As New BCOORD
+                    _bc.xc = rbound.ReadDouble
+                    _bc.yc = rbound.ReadDouble
+                    _bobjright.BcoordList.Add(_bc)
+                Next
+            End Using
+            Call Gluetri(_bobjright)
+        End If
+        If (filegTop <> "") Then
+            Using rbound As New BinaryReader(File.Open(filegTop, FileMode.Open))
+
+                _bobjtop.NumV = rbound.ReadInt32
+                _bobjtop.BorderType = rbound.ReadString
+                _bobjtop.BorderCoord = rbound.ReadDouble
+                _bobjtop.BcoordList = New List(Of BCOORD)()
+                For j = 1 To _bobjtop.NumV
+                    Dim _bc As New BCOORD
+                    _bc.xc = rbound.ReadDouble
+                    _bc.yc = rbound.ReadDouble
+                    _bobjtop.BcoordList.Add(_bc)
+                Next
+            End Using
+            Call Gluetri(_bobjtop)
+        End If
+        If (filegBottom <> "") Then
+            Using rbound As New BinaryReader(File.Open(filegBottom, FileMode.Open))
+
+                _bobjbottom.NumV = rbound.ReadInt32
+                _bobjbottom.BorderType = rbound.ReadString
+                _bobjbottom.BorderCoord = rbound.ReadDouble
+                _bobjbottom.BcoordList = New List(Of BCOORD)()
+                For j = 1 To _bobjbottom.NumV
+                    Dim _bc As New BCOORD
+                    _bc.xc = rbound.ReadDouble
+                    _bc.yc = rbound.ReadDouble
+                    _bobjbottom.BcoordList.Add(_bc)
+                Next
+            End Using
+            Call Gluetri(_bobjbottom)
+        End If
+        Console.WriteLine("Totale nuovi triangoli " & totalenuovitri)
+    End Sub
+    Sub Gluetri(ByRef _bobj As BOUNDOBJ)
+        Dim numt As Integer
+        Dim mymat As String, pDataByte As Byte, numoel As Integer
+        Dim k As Integer, k1 As Integer, k2 As Integer, k3 As Integer
+        Dim btype As String, ctest As Double, m As Integer
+        Dim kk(3) As Integer, k0 As Integer, prog(3) As Double, pp As Double
+        Dim xx As Double, yy As Double
+        Dim kb As Integer, kb1 As Integer, kb2 As Integer
+        Dim x1 As Double, x2 As Double, y1 As Double, y2 As Double, h1 As Double, h2 As Double
+        Dim vx As Single, vy As Single, vz As Single
+        Dim kv As UInt32, kn As UInt32, kc As UInt32, kt As UInt32
+        Dim p1 As Double, p2 As Double, p As Double
+        Dim _Normx As Byte, _Normy As Byte, _Normz As Byte, Nx As Single, Ny As Single, Nz As Single
+        Dim _Colred As Single, _Colgreen As Single, _Colblue As Single, _Colalpha As Single
+        Dim _Textx As Single, _Texty As Single
+        Dim nlast As Integer
+        Dim vk1 As UInt32, vk2 As UInt32, nk1 As UInt32, nk2 As UInt32, ck1 As UInt32, ck2 As UInt32, tk1 As UInt32, tk2 As UInt32
+        Dim tnuovitri As Integer
+        Dim toler As Double
+        Dim Mostra As Boolean
+
+        Mostra = False
+        toler = 0.00001
+        numt = 0
+        totalenuovitri = 0
+
+        btype = _bobj.BorderType
+        ctest = _bobj.BorderCoord
+        
+        For Each _obj In TopLevelObjList
+            tnuovitri = 0
+            intobjtype = Asc(_obj.objtype)
+            If (intobjtype = 10) Then           'Individual triangle object
+                mymat = ItriobjList(numt).Material
+                pDataByte = ItriobjList(numt).PropDatabyte
+                Console.WriteLine("Searching boundary triangle in " & mymat)
+                numoel = ItriobjList(numt).ItriidxList.Count / 3
+                nuovitri = 0
+
+                For k = 0 To (numoel - 1)
+                    For m = 1 To 3
+                        kk(m) = -1
+                    Next
+                    k1 = ItriobjList(numt).ItriidxList(3 * k).Vertidx32
+                    k2 = ItriobjList(numt).ItriidxList(3 * k + 1).Vertidx32
+                    k3 = ItriobjList(numt).ItriidxList(3 * k + 2).Vertidx32
+                   
+                    m = 0
+                    If (btype = "fi") Then
+                        If (Math.Abs(ctest - VertexList(k1).Vertx) < toler) Then
+                            m = m + 1
+                            kk(m) = 3 * k
+                            prog(m) = VertexList(k1).Verty
+                        End If
+                        If (Math.Abs(ctest - VertexList(k2).Vertx) < toler) Then
+                            m = m + 1
+                            kk(m) = 3 * k + 1
+                            prog(m) = VertexList(k2).Verty
+                        End If
+                        If (Math.Abs(ctest - VertexList(k3).Vertx) < toler) Then
+                            m = m + 1
+                            kk(m) = 3 * k + 2
+                            prog(m) = VertexList(k3).Verty
+                        End If
+
+                    ElseIf (btype = "lam") Then
+                        'm = 0
+                        If (Math.Abs(ctest - VertexList(k1).Verty) < toler) Then
+                            m = m + 1
+                            kk(m) = 3 * k
+                            prog(m) = VertexList(k1).Vertx
+                        End If
+                        If (Math.Abs(ctest - VertexList(k2).Verty) < toler) Then
+                            m = m + 1
+                            kk(m) = 3 * k + 1
+                            prog(m) = VertexList(k2).Vertx
+                        End If
+                        If (Math.Abs(ctest - VertexList(k3).Verty) < toler) Then
+                            m = m + 1
+                            kk(m) = 3 * k + 2
+                            prog(m) = VertexList(k3).Vertx
+                        End If
+                    End If
+
+                    If (m = 2) Then             ' Preparing indexes to updating
+
+
+
+                        If ((kk(1) = 3 * k) And (kk(2) = 3 * k + 1)) Then kk(3) = 3 * k + 2
+                        If ((kk(1) = 3 * k) And (kk(2) = 3 * k + 2)) Then kk(3) = 3 * k + 1
+                        If ((kk(1) = 3 * k + 1) And (kk(2) = 3 * k + 2)) Then kk(3) = 3 * k
+
+                        If (prog(1) > prog(2)) Then     'ordinamento progressive crescenti
+                            pp = prog(1)
+                            k0 = kk(1)
+                            prog(1) = prog(2)
+                            kk(1) = kk(2)
+                            prog(2) = pp
+                            kk(2) = k0
+                        End If
+                        'If ((Math.Abs(prog(1) - 40.8994) < 0.00001) And ((Math.Abs(prog(2) - 40.9025) < 0.00001))) Then
+                        'Mostra = True
+                        'End If
+
+                        If (Mostra) Then
+                            Console.WriteLine("trovato triangolo boundary " & ItriobjList(numt).ItriidxList(kk(1)).Vertidx32 & " " & ItriobjList(numt).ItriidxList(kk(2)).Vertidx32 & " " & ItriobjList(numt).ItriidxList(kk(3)).Vertidx32)
+                            Console.WriteLine("vertice 1: X " & VertexList(ItriobjList(numt).ItriidxList(kk(1)).Vertidx32).Vertx & " Y " & VertexList(ItriobjList(numt).ItriidxList(kk(1)).Vertidx32).Verty & " Z " & VertexList(ItriobjList(numt).ItriidxList(kk(1)).Vertidx32).Vertz)
+                            Console.WriteLine("vertice 2: X " & VertexList(ItriobjList(numt).ItriidxList(kk(2)).Vertidx32).Vertx & " Y " & VertexList(ItriobjList(numt).ItriidxList(kk(2)).Vertidx32).Verty & " Z " & VertexList(ItriobjList(numt).ItriidxList(kk(2)).Vertidx32).Vertz)
+                            Console.WriteLine("vertice 3: X " & VertexList(ItriobjList(numt).ItriidxList(kk(3)).Vertidx32).Vertx & " Y " & VertexList(ItriobjList(numt).ItriidxList(kk(3)).Vertidx32).Verty & " Z " & VertexList(ItriobjList(numt).ItriidxList(kk(3)).Vertidx32).Vertz)
+                            Console.WriteLine("vertice 1: NX " & NormalList(ItriobjList(numt).ItriidxList(kk(1)).Normidx32).Normx & " NY " & NormalList(ItriobjList(numt).ItriidxList(kk(1)).Normidx32).Normy & " NZ " & NormalList(ItriobjList(numt).ItriidxList(kk(1)).Normidx32).Normz)
+                            Console.WriteLine("vertice 2: NX " & NormalList(ItriobjList(numt).ItriidxList(kk(2)).Normidx32).Normx & " NY " & NormalList(ItriobjList(numt).ItriidxList(kk(2)).Normidx32).Normy & " NZ " & NormalList(ItriobjList(numt).ItriidxList(kk(2)).Normidx32).Normz)
+                            Console.WriteLine("vertice 3: NX " & NormalList(ItriobjList(numt).ItriidxList(kk(3)).Normidx32).Normx & " NY " & NormalList(ItriobjList(numt).ItriidxList(kk(3)).Normidx32).Normy & " NZ " & NormalList(ItriobjList(numt).ItriidxList(kk(3)).Normidx32).Normz)
+                            Console.WriteLine("vertice 1: TX " & TextureList(ItriobjList(numt).ItriidxList(kk(1)).Textidx32).Textx & " TY " & TextureList(ItriobjList(numt).ItriidxList(kk(1)).Textidx32).Texty)
+                            Console.WriteLine("vertice 2: TX " & TextureList(ItriobjList(numt).ItriidxList(kk(2)).Textidx32).Textx & " TY " & TextureList(ItriobjList(numt).ItriidxList(kk(2)).Textidx32).Texty)
+                            Console.WriteLine("vertice 3: TX " & TextureList(ItriobjList(numt).ItriidxList(kk(3)).Textidx32).Textx & " TY " & TextureList(ItriobjList(numt).ItriidxList(kk(3)).Textidx32).Texty)
+                            Console.WriteLine("Righe itriidx: " & kk(1) & " " & kk(2) & " " & kk(3), vbOKOnly)
+                            Console.WriteLine("Clockwise: " & clockwise(ItriobjList(numt).ItriidxList(kk(1)).Vertidx32, ItriobjList(numt).ItriidxList(kk(2)).Vertidx32, ItriobjList(numt).ItriidxList(kk(3)).Vertidx32))
+                            Console.WriteLine("Clockwise scambiato: " & clockwise(ItriobjList(numt).ItriidxList(kk(2)).Vertidx32, ItriobjList(numt).ItriidxList(kk(1)).Vertidx32, ItriobjList(numt).ItriidxList(kk(3)).Vertidx32))
+                        End If
+
+                        '------------------------------------------------------
+                        'start interpolation and new vertex/triangle creation
+                        '------------------------------------------------------
+                        kb = 0
+                        kb1 = 0
+                        kb2 = _bobj.BcoordList.Count - 1
+                        vk1 = ItriobjList(numt).ItriidxList(kk(1)).Vertidx32
+                        vk2 = ItriobjList(numt).ItriidxList(kk(2)).Vertidx32
+                        For Each _bc As BCOORD In _bobj.BcoordList              ' determining interaction zone
+                            xx = _bc.xc
+                            yy = _bc.yc
+                            If (btype = "fi") Then
+                                If (xx < VertexList(vk1).Verty) Then kb1 = kb
+                                If (xx < VertexList(vk2).Verty) Then kb2 = kb
+                            ElseIf (btype = "lam") Then
+                                If (xx < VertexList(vk1).Vertx) Then kb1 = kb
+                                If (xx < VertexList(vk2).Vertx) Then kb2 = kb
+                            End If
+                            kb = kb + 1
+                        Next
+                        kb2 = kb2 + 1
+                        If (kb2 > _bobj.BcoordList.Count - 1) Then kb2 = _bobj.BcoordList.Count - 1
+                        If (Mostra) Then
+                            Console.WriteLine("kb1 kb2 " & kb1 & " " & kb2)
+                        End If
+                        If ((kb2 - kb1) = 1) Then               'lato triangololo interamente contenuto in lato boundary. Sostituzione delle altezze
+                            x1 = _bobj.BcoordList(kb1).xc
+                            y1 = _bobj.BcoordList(kb1).yc
+                            x2 = _bobj.BcoordList(kb2).xc
+                            y2 = _bobj.BcoordList(kb2).yc
+                            h1 = y1 + (y2 - y1) / (x2 - x1) * (prog(1) - x1)
+                            h2 = y1 + (y2 - y1) / (x2 - x1) * (prog(2) - x1)
+                            VertexList(vk1).Vertz = h1
+                            VertexList(vk2).Vertz = h2
+                            If (Mostra) Then
+                                Console.WriteLine("modificate sole altezze")
+                                Console.WriteLine("x1 y1 x2 y2 prog(1) prog(2) " & x1 & " " & y1 & " " & x2 & " " & y2 & " " & prog(1) & " " & prog(2))
+                                Console.WriteLine("h1 h2 " & h1 & " " & h2)
+                            End If
+                            ' MsgBox("modificate sole altezze", vbOKOnly)
+                        Else
+                            If (Mostra) Then
+                                MsgBox("kb1 kb2 " & kb1 & " " & kb2, vbOKOnly)
+                            End If
+                            'lato triangololo contenuto da più lati boundary     !!! ricordarsi test su pDataByte
+                            x1 = _bobj.BcoordList(kb1).xc
+                            y1 = _bobj.BcoordList(kb1).yc
+                            x2 = _bobj.BcoordList(kb1 + 1).xc
+                            y2 = _bobj.BcoordList(kb1 + 1).yc
+                            h1 = y1 + (y2 - y1) / (x2 - x1) * (prog(1) - x1)
+                            VertexList(vk1).Vertz = h1          'sostituzione altezza vertice 1
+                            If (Mostra) Then
+                                Console.WriteLine("sostituita altezza vertice 1")
+                                Console.WriteLine("x1 y1 x2 y2 prog(1) " & x1 & " " & y1 & " " & x2 & " " & y2 & " " & prog(1))
+                                Console.WriteLine("h1 " & h1)
+                            End If
+                            x1 = _bobj.BcoordList(kb2 - 1).xc
+                            y1 = _bobj.BcoordList(kb2 - 1).yc
+                            x2 = _bobj.BcoordList(kb2).xc
+                            y2 = _bobj.BcoordList(kb2).yc
+                            h2 = y1 + (y2 - y1) / (x2 - x1) * (prog(2) - x1)
+                            VertexList(vk2).Vertz = h2          'sostituzione altezza vertice 2
+                            If (Mostra) Then
+                                Console.WriteLine("sostituita altezza vertice 2")
+                                Console.WriteLine("x1 y1 x2 y2 prog(1) " & x1 & " " & y1 & " " & x2 & " " & y2 & " " & prog(2))
+                                Console.WriteLine("h2 " & h2)
+                            End If
+                            BvertidxList.Clear()
+                            For i = (kb1 + 1) To (kb2 - 1)
+
+                                If (btype = "fi") Then                      'New vertex
+                                    vx = ctest
+                                    vy = _bobj.BcoordList(i).xc
+                                    vz = _bobj.BcoordList(i).yc
+                                    p = vy
+                                ElseIf (btype = "lam") Then
+                                    vx = _bobj.BcoordList(i).xc
+                                    vy = ctest
+                                    vz = _bobj.BcoordList(i).yc
+                                    p = vx
+                                End If
+                                If (1 And pDataByte) Then
+                                    VertexList.Add(New VERTEX(vx, vy, vz))
+                                    kv = VertexList.Count - 1                   'new vertex index   !!! prog
+                                End If
+
+                                If (btype = "fi") Then
+                                    p1 = VertexList(vk1).Verty
+                                    p2 = VertexList(vk2).Verty
+                                ElseIf (btype = "lam") Then
+                                    p1 = VertexList(vk1).Vertx
+                                    p2 = VertexList(vk2).Vertx
+                                End If
+
+                                If (2 And pDataByte) Then
+                                    nk1 = ItriobjList(numt).ItriidxList(kk(1)).Normidx32
+                                    nk2 = ItriobjList(numt).ItriidxList(kk(2)).Normidx32
+                                    y1 = NormalList(nk1).Normx       'New vertex normal     !!!! ricordarsi di calcolare single e normalizzare
+                                    y2 = NormalList(nk2).Normx
+                                    y1 = y1 / 127.5 - 1
+                                    y2 = y2 / 127.5 - 1
+                                    Nx = y1 + (y2 - y1) / (p2 - p1) * (p - p1)
+                                    y1 = NormalList(nk1).Normy
+                                    y2 = NormalList(nk2).Normy
+                                    y1 = y1 / 127.5 - 1
+                                    y2 = y2 / 127.5 - 1
+                                    Ny = y1 + (y2 - y1) / (p2 - p1) * (p - p1)
+                                    y1 = NormalList(nk1).Normz
+                                    y2 = NormalList(nk2).Normz
+                                    y1 = y1 / 127.5 - 1
+                                    y2 = y2 / 127.5 - 1
+                                    Nz = y1 + (y2 - y1) / (p2 - p1) * (p - p1)
+                                    Nx = Nx / (Nx * Nx + Ny * Ny + Nz * Nz)                                     'Normalization
+                                    Ny = Ny / (Nx * Nx + Ny * Ny + Nz * Nz)
+                                    Nz = Nz / (Nx * Nx + Ny * Ny + Nz * Nz)
+                                    _Normx = CheckByte(Nx)
+                                    _Normy = CheckByte(Ny)
+                                    _Normz = CheckByte(Nz)
+                                    NormalList.Add(New NORMAL(_Normx, _Normy, _Normz))
+                                    kn = NormalList.Count - 1                                                   'New vertex normal index
+                                End If
+
+                                If (4 And pDataByte) Then
+                                    ck1 = ItriobjList(numt).ItriidxList(kk(1)).Colidx32
+                                    ck2 = ItriobjList(numt).ItriidxList(kk(2)).Colidx32
+                                    y1 = ColorList(ck1).Colred       'New vertex color     
+                                    y2 = ColorList(ck2).Colred
+                                    _Colred = y1 + (y2 - y1) / (p2 - p1) * (p - p1)
+                                    y1 = ColorList(ck1).Colgreen
+                                    y2 = ColorList(ck2).Colgreen
+                                    _Colgreen = y1 + (y2 - y1) / (p2 - p1) * (p - p1)
+                                    y1 = ColorList(ck1).Colblue
+                                    y2 = ColorList(ck2).Colblue
+                                    _Colblue = y1 + (y2 - y1) / (p2 - p1) * (p - p1)
+                                    y1 = ColorList(ck1).Colalpha
+                                    y2 = ColorList(ck2).Colalpha
+                                    _Colalpha = y1 + (y2 - y1) / (p2 - p1) * (p - p1)
+                                    ColorList.Add(New COLOR(_Colred, _Colgreen, _Colblue, _Colalpha))
+                                    kc = ColorList.Count - 1                                                   'New vertex color index
+                                End If
+                                If (8 And pDataByte) Then
+                                    tk1 = ItriobjList(numt).ItriidxList(kk(1)).Textidx32
+                                    tk2 = ItriobjList(numt).ItriidxList(kk(2)).Textidx32
+                                    y1 = TextureList(tk1).Textx      'New vertex texture
+                                    y2 = TextureList(tk2).Textx
+                                    _Textx = y1 + (y2 - y1) / (p2 - p1) * (p - p1)
+                                    y1 = TextureList(tk1).Texty
+                                    y2 = TextureList(tk2).Texty
+                                    _Texty = y1 + (y2 - y1) / (p2 - p1) * (p - p1)
+                                    TextureList.Add(New TEXTURE(_Textx, _Texty))
+                                    kt = TextureList.Count - 1                                                   'New vertex texture index
+                                End If
+                                BvertidxList.Add(New BVERTIDX(i, kv, kn, kc, kt))
+                                If (Mostra) Then
+                                    Console.WriteLine("aggiunto nuovo vertice i kv kn kc kt " & i & " " & kv & " " & kn & " " & kc & " " & kt)
+                                    Console.WriteLine("vx vy vz " & vx & " " & vy & " " & vz)
+                                End If
+                            Next
+                            If (BvertidxList.Count > 0) Then                                                        ' correzione e creazione triangoli
+                                nuovitri = 0
+
+                                For j = 0 To BvertidxList.Count - 2                                                ' New triangle insertion loop
+                                    Dim _itriidx As New ITRIIDX
+                                    _itriidx.Vertidx32 = BvertidxList(j).KVidx
+                                    _itriidx.Normidx32 = BvertidxList(j).KNidx
+                                    _itriidx.Colidx32 = BvertidxList(j).KCidx
+                                    _itriidx.Textidx32 = BvertidxList(j).KTidx
+
+                                    Dim _itriidx1 As New ITRIIDX
+                                    _itriidx1.Vertidx32 = BvertidxList(j + 1).KVidx
+                                    _itriidx1.Normidx32 = BvertidxList(j + 1).KNidx
+                                    _itriidx1.Colidx32 = BvertidxList(j + 1).KCidx
+                                    _itriidx1.Textidx32 = BvertidxList(j + 1).KTidx
+
+                                    Dim _itriidx2 As New ITRIIDX
+
+                                    _itriidx2.Vertidx32 = ItriobjList(numt).ItriidxList(kk(3)).Vertidx32
+                                    _itriidx2.Normidx32 = ItriobjList(numt).ItriidxList(kk(3)).Normidx32
+                                    _itriidx2.Colidx32 = ItriobjList(numt).ItriidxList(kk(3)).Colidx32
+                                    _itriidx2.Textidx32 = ItriobjList(numt).ItriidxList(kk(3)).Textidx32
+
+
+                                    If (clockwise(_itriidx.Vertidx32, _itriidx1.Vertidx32, _itriidx2.Vertidx32)) Then
+                                        ItriobjList(numt).ItriidxList.Add(_itriidx1)
+                                        ItriobjList(numt).ItriidxList.Add(_itriidx)
+                                        ItriobjList(numt).ItriidxList.Add(_itriidx2)
+                                    Else
+                                        ItriobjList(numt).ItriidxList.Add(_itriidx)
+                                        ItriobjList(numt).ItriidxList.Add(_itriidx1)
+                                        ItriobjList(numt).ItriidxList.Add(_itriidx2)
+                                    End If
+
+
+                                    If (Mostra) Then
+                                        Console.WriteLine("creato triangolo intermedio " & _itriidx.Vertidx32 & " " & _itriidx1.Vertidx32 & " " & ItriobjList(numt).ItriidxList(kk(3)).Vertidx32)
+                                        Console.WriteLine("vertice 1: X " & VertexList(_itriidx.Vertidx32).Vertx & " Y " & VertexList(_itriidx.Vertidx32).Verty & " Z " & VertexList(_itriidx.Vertidx32).Vertz)
+                                        Console.WriteLine("vertice 2: X " & VertexList(_itriidx1.Vertidx32).Vertx & " Y " & VertexList(_itriidx1.Vertidx32).Verty & " Z " & VertexList(_itriidx1.Vertidx32).Vertz)
+                                        Console.WriteLine("vertice 3: X " & VertexList(_itriidx2.Vertidx32).Vertx & " Y " & VertexList(_itriidx2.Vertidx32).Verty & " Z " & VertexList(_itriidx2.Vertidx32).Vertz)
+                                        Console.WriteLine("vertice 1: NX " & NormalList(_itriidx.Normidx32).Normx & " NY " & NormalList(_itriidx.Normidx32).Normy & " NZ " & NormalList(_itriidx.Normidx32).Normz)
+                                        Console.WriteLine("vertice 2: NX " & NormalList(_itriidx1.Normidx32).Normx & " NY " & NormalList(_itriidx1.Normidx32).Normy & " NZ " & NormalList(_itriidx1.Normidx32).Normz)
+                                        Console.WriteLine("vertice 3: NX " & NormalList(_itriidx2.Normidx32).Normx & " NY " & NormalList(_itriidx2.Normidx32).Normy & " NZ " & NormalList(_itriidx2.Normidx32).Normz)
+                                        Console.WriteLine("vertice 1: TX " & TextureList(_itriidx.Textidx32).Textx & " TY " & TextureList(_itriidx.Textidx32).Texty)
+                                        Console.WriteLine("vertice 2: TX " & TextureList(_itriidx1.Textidx32).Textx & " TY " & TextureList(_itriidx1.Textidx32).Texty)
+                                        Console.WriteLine("vertice 3: TX " & TextureList(_itriidx2.Textidx32).Textx & " TY " & TextureList(_itriidx2.Textidx32).Texty)
+                                        Console.WriteLine("Righe itriidx: " & ItriobjList(numt).ItriidxList.Count - 2 & " " & ItriobjList(numt).ItriidxList.Count - 1 & " " & ItriobjList(numt).ItriidxList.Count)
+                                        Console.WriteLine("Clockwise: " & clockwise(_itriidx.Vertidx32, _itriidx1.Vertidx32, _itriidx2.Vertidx32))
+                                    End If
+
+                                    nuovitri = nuovitri + 1
+                                Next
+                                Dim _itriidx3 As New ITRIIDX                                                        'Last new triangle insert
+                                nlast = BvertidxList.Count - 1
+                                _itriidx3.Vertidx32 = BvertidxList(nlast).KVidx
+                                _itriidx3.Normidx32 = BvertidxList(nlast).KNidx
+                                _itriidx3.Colidx32 = BvertidxList(nlast).KCidx
+                                _itriidx3.Textidx32 = BvertidxList(nlast).KTidx
+
+
+
+                                Dim _itriidx4 As New ITRIIDX
+                                _itriidx4.Vertidx32 = ItriobjList(numt).ItriidxList(kk(2)).Vertidx32
+                                _itriidx4.Normidx32 = ItriobjList(numt).ItriidxList(kk(2)).Normidx32
+                                _itriidx4.Colidx32 = ItriobjList(numt).ItriidxList(kk(2)).Colidx32
+                                _itriidx4.Textidx32 = ItriobjList(numt).ItriidxList(kk(2)).Textidx32
+
+                                Dim _itriidx5 As New ITRIIDX
+                                _itriidx5.Vertidx32 = ItriobjList(numt).ItriidxList(kk(3)).Vertidx32
+                                _itriidx5.Normidx32 = ItriobjList(numt).ItriidxList(kk(3)).Normidx32
+                                _itriidx5.Colidx32 = ItriobjList(numt).ItriidxList(kk(3)).Colidx32
+                                _itriidx5.Textidx32 = ItriobjList(numt).ItriidxList(kk(3)).Textidx32
+
+
+                                If (clockwise(_itriidx3.Vertidx32, _itriidx4.Vertidx32, _itriidx5.Vertidx32)) Then
+                                    ItriobjList(numt).ItriidxList.Add(_itriidx4)
+                                    ItriobjList(numt).ItriidxList.Add(_itriidx3)
+                                    ItriobjList(numt).ItriidxList.Add(_itriidx5)
+                                Else
+                                    ItriobjList(numt).ItriidxList.Add(_itriidx3)
+                                    ItriobjList(numt).ItriidxList.Add(_itriidx4)
+                                    ItriobjList(numt).ItriidxList.Add(_itriidx5)
+                                End If
+
+
+                                If (Mostra) Then
+                                    Console.WriteLine("creato ultimo triangolo " & _itriidx3.Vertidx32 & " " & _itriidx4.Vertidx32 & " " & ItriobjList(numt).ItriidxList(kk(3)).Vertidx32)
+                                    Console.WriteLine("vertice 1: X " & VertexList(_itriidx3.Vertidx32).Vertx & " Y " & VertexList(_itriidx3.Vertidx32).Verty & " Z " & VertexList(_itriidx3.Vertidx32).Vertz)
+                                    Console.WriteLine("vertice 2: X " & VertexList(_itriidx4.Vertidx32).Vertx & " Y " & VertexList(_itriidx4.Vertidx32).Verty & " Z " & VertexList(_itriidx4.Vertidx32).Vertz)
+                                    Console.WriteLine("vertice 3: X " & VertexList(_itriidx5.Vertidx32).Vertx & " Y " & VertexList(_itriidx5.Vertidx32).Verty & " Z " & VertexList(_itriidx5.Vertidx32).Vertz)
+                                    Console.WriteLine("vertice 1: NX " & NormalList(_itriidx3.Normidx32).Normx & " NY " & NormalList(_itriidx3.Normidx32).Normy & " NZ " & NormalList(_itriidx3.Normidx32).Normz)
+                                    Console.WriteLine("vertice 2: NX " & NormalList(_itriidx4.Normidx32).Normx & " NY " & NormalList(_itriidx4.Normidx32).Normy & " NZ " & NormalList(_itriidx4.Normidx32).Normz)
+                                    Console.WriteLine("vertice 3: NX " & NormalList(_itriidx5.Normidx32).Normx & " NY " & NormalList(_itriidx5.Normidx32).Normy & " NZ " & NormalList(_itriidx5.Normidx32).Normz)
+                                    Console.WriteLine("vertice 1: TX " & TextureList(_itriidx3.Textidx32).Textx & " TY " & TextureList(_itriidx3.Textidx32).Texty)
+                                    Console.WriteLine("vertice 2: TX " & TextureList(_itriidx4.Textidx32).Textx & " TY " & TextureList(_itriidx4.Textidx32).Texty)
+                                    Console.WriteLine("vertice 3: TX " & TextureList(_itriidx5.Textidx32).Textx & " TY " & TextureList(_itriidx5.Textidx32).Texty)
+                                    Console.WriteLine("Righe itriidx: " & ItriobjList(numt).ItriidxList.Count - 2 & " " & ItriobjList(numt).ItriidxList.Count - 1 & " " & ItriobjList(numt).ItriidxList.Count)
+                                    Console.WriteLine("Clockwise: " & clockwise(_itriidx3.Vertidx32, _itriidx4.Vertidx32, _itriidx5.Vertidx32))
+                                End If
+
+
+                                'Modifica primo triangolo modifica dati punto 2 (in questo caso manca clockwise!!!)
+                                ItriobjList(numt).ItriidxList(kk(2)).Vertidx32 = BvertidxList(0).KVidx
+                                ItriobjList(numt).ItriidxList(kk(2)).Normidx32 = BvertidxList(0).KNidx
+                                ItriobjList(numt).ItriidxList(kk(2)).Colidx32 = BvertidxList(0).KCidx
+                                ItriobjList(numt).ItriidxList(kk(2)).Textidx32 = BvertidxList(0).KTidx
+                                'Console.WriteLine("modificato 1 triangolo")
+                                If (Mostra) Then
+                                    Console.WriteLine("modificato primo triangolo " & ItriobjList(numt).ItriidxList(kk(1)).Vertidx32 & " " & ItriobjList(numt).ItriidxList(kk(2)).Vertidx32 & " " & ItriobjList(numt).ItriidxList(kk(3)).Vertidx32)
+                                    Console.WriteLine("vertice 1: X " & VertexList(ItriobjList(numt).ItriidxList(kk(1)).Vertidx32).Vertx & " Y " & VertexList(ItriobjList(numt).ItriidxList(kk(1)).Vertidx32).Verty & " Z " & VertexList(ItriobjList(numt).ItriidxList(kk(1)).Vertidx32).Vertz)
+                                    Console.WriteLine("vertice 2: X " & VertexList(ItriobjList(numt).ItriidxList(kk(2)).Vertidx32).Vertx & " Y " & VertexList(ItriobjList(numt).ItriidxList(kk(2)).Vertidx32).Verty & " Z " & VertexList(ItriobjList(numt).ItriidxList(kk(2)).Vertidx32).Vertz)
+                                    Console.WriteLine("vertice 3: X " & VertexList(ItriobjList(numt).ItriidxList(kk(3)).Vertidx32).Vertx & " Y " & VertexList(ItriobjList(numt).ItriidxList(kk(3)).Vertidx32).Verty & " Z " & VertexList(ItriobjList(numt).ItriidxList(kk(3)).Vertidx32).Vertz)
+                                    Console.WriteLine("vertice 1: NX " & NormalList(ItriobjList(numt).ItriidxList(kk(1)).Normidx32).Normx & " NY " & NormalList(ItriobjList(numt).ItriidxList(kk(1)).Normidx32).Normy & " NZ " & NormalList(ItriobjList(numt).ItriidxList(kk(1)).Normidx32).Normz)
+                                    Console.WriteLine("vertice 2: NX " & NormalList(ItriobjList(numt).ItriidxList(kk(2)).Normidx32).Normx & " NY " & NormalList(ItriobjList(numt).ItriidxList(kk(2)).Normidx32).Normy & " NZ " & NormalList(ItriobjList(numt).ItriidxList(kk(2)).Normidx32).Normz)
+                                    Console.WriteLine("vertice 3: NX " & NormalList(ItriobjList(numt).ItriidxList(kk(3)).Normidx32).Normx & " NY " & NormalList(ItriobjList(numt).ItriidxList(kk(3)).Normidx32).Normy & " NZ " & NormalList(ItriobjList(numt).ItriidxList(kk(3)).Normidx32).Normz)
+                                    Console.WriteLine("vertice 1: TX " & TextureList(ItriobjList(numt).ItriidxList(kk(1)).Textidx32).Textx & " TY " & TextureList(ItriobjList(numt).ItriidxList(kk(1)).Textidx32).Texty)
+                                    Console.WriteLine("vertice 2: TX " & TextureList(ItriobjList(numt).ItriidxList(kk(2)).Textidx32).Textx & " TY " & TextureList(ItriobjList(numt).ItriidxList(kk(2)).Textidx32).Texty)
+                                    Console.WriteLine("vertice 3: TX " & TextureList(ItriobjList(numt).ItriidxList(kk(3)).Textidx32).Textx & " TY " & TextureList(ItriobjList(numt).ItriidxList(kk(3)).Textidx32).Texty)
+                                    Console.WriteLine("Righe itriidx: " & kk(1) & " " & kk(2) & " " & kk(3))
+                                    Console.WriteLine("Clockwise: " & clockwise(ItriobjList(numt).ItriidxList(kk(1)).Vertidx32, ItriobjList(numt).ItriidxList(kk(2)).Vertidx32, ItriobjList(numt).ItriidxList(kk(3)).Vertidx32))
+                                End If
+
+
+                                nuovitri = nuovitri + 1
+
+                                tnuovitri = tnuovitri + nuovitri
+                            End If
+                            End If ' end if più lati boundary
+
+                    End If 'end if m=2
+
+
+                Next k
+                Console.WriteLine(mymat & ": aggiunti " & tnuovitri & " nuovi triangoli")
+                totalenuovitri = totalenuovitri + tnuovitri
+                numt = numt + 1
+            End If 'end of object type = itriangle if
+        Next  'end top level object loop
+
+        MsgBox("fine gluetri copiare console se desiderato", vbOKOnly)
+    End Sub
+
+End Module
+
+
+
