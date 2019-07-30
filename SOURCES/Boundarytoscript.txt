@@ -40,7 +40,7 @@ Module Module1
 
     Sub Main()
 
-        MsgBox("Hello World!", vbOKOnly)
+
         Dim j As Integer
         Dim args() As String = System.Environment.GetCommandLineArgs()
         Dim outstr As String
@@ -80,21 +80,25 @@ Module Module1
         End Using
         Console.WriteLine("xmin xmax deltax: " & xmin & " " & xmax & " " & (xmax - xmin))
         Console.WriteLine("ymin ymax deltay: " & ymin & " " & ymax & " " & (ymax - ymin))
-        scx = InputBox("x scale factor:", vbOKOnly)
-        scy = (InputBox("y scale factor:", vbOKOnly))
+        scx = CDbl(InputBox("x scale factor (default 10000):", "10000.00", vbOKOnly))
+        scy = CDbl(InputBox("y scale factor (default 1.00):", "1.00", vbOKOnly))
+        
+        If (scx = 0) Then scx = 10000.0
+        If (scy = 0) Then scy = 1
+        
         '--------------------------------------------------------------------------
         ' Output routine to visualize
         '--------------------------------------------------------------------------
 
         GeomstreamWriter = New IO.StreamWriter(filescr, False) 'script file ACAD for geometric objs
 
-        outstr = "LINEA "
+        outstr = "_LINE "
         For Each _bc As BCOORD In _bobj.BcoordList
             outstr = outstr & scx * _bc.xc & ";" & scy * _bc.yc & " "
         Next
 
-        GeomstreamWriter.WriteLine(ConvLocal(outstr))
-        GeomstreamWriter.WriteLine(ConvLocal("LINEA " & scx * xmin & ";0.0 " & scx * xmax & ";0.0 "))
+        GeomstreamWriter.WriteLine(ConvLocal(outstr))       'Use only if you need to convert your local punct signs
+        GeomstreamWriter.WriteLine(ConvLocal("_LINE " & scx * xmin & ";0.0 " & scx * xmax & ";0.0 "))
         GeomstreamWriter.WriteLine("")
         GeomstreamWriter.Close()
 
@@ -118,7 +122,3 @@ Module Module1
     
     
 End Module
-
-
-
-
