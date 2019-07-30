@@ -1,4 +1,4 @@
-How it works.
+*How it works.*
 
 GLUE uses the following workflow to fix gaps between two adiacent scenery tiles:
 
