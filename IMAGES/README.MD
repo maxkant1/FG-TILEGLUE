@@ -22,8 +22,8 @@ The following Excel graphic show the cross section at boundary of top tile (3104
 
 ![Cross section at top boundary after glue](/IMAGES/TBTafter.png)
 
-Left boundary before GLUE:
-![Tile 3104954 left boundary before glue](/IMAGES/Clipboard03.jpg)
+Detail top boundary before GLUE:
+![Tile 3104954 top boundary before glue](/IMAGES/Clipboard03.jpg)
 
-Left boundary after GLUE:
+Detail top boundary after GLUE:
 ![Tile 3104954 left boundary after glue](/IMAGES/glued03.jpg)
