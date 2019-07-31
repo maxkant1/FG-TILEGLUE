@@ -21,3 +21,9 @@ The following Excel graphic show the cross section at boundary of top tile (3104
 The following Excel graphic show the cross section at boundary of top tile (3104962) and glued tile (3104954) in red and blue respectively.
 
 ![Cross section at top boundary after glue](/IMAGES/TBTafter.png)
+
+Left boundary before GLUE:
+![Tile 3104954 left boundary before glue](/IMAGES/Clipboard03.jpg)
+
+Left boundary after GLUE:
+![Tile 3104954 left boundary after glue](/IMAGES/glued03.jpg)
