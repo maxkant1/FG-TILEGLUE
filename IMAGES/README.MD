@@ -7,3 +7,9 @@ Top boundary before GLUE:
 
 Top boundary after GLUE:
 ![Tile 3104954 top boundary after glue](/IMAGES/glued01.jpg)
+
+Top boundary before GLUE:
+![Tile 3104954 top boundary before glue](/IMAGES/Clipboard02.jpg)
+
+Top boundary after GLUE:
+![Tile 3104954 top boundary after glue](/IMAGES/glued02.jpg)
