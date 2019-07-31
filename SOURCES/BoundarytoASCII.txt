@@ -40,7 +40,7 @@ Module Module1
 
     Sub Main()
 
-        MsgBox("Hello World!", vbOKOnly)
+
         Dim j As Integer
         Dim args() As String = System.Environment.GetCommandLineArgs()
 
@@ -118,8 +118,3 @@ Module Module1
 
 
 End Module
-
-
-
-
-
