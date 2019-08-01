@@ -1,0 +1,1 @@
+This folder should contain Boundary binary files converted to ascii.
