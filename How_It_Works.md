@@ -2,7 +2,7 @@
 
 GLUE uses the following workflow to fix gaps between two adjacent scenery tiles:
 
-1) Reads the btg file and transform vertices coordinates from [ECEF (Earth fixed Earth centered) x y z](http://en.wikipedia.org/wiki/ECEF) to [geodetic lat lon elevation (lambda, phi, h)](http://en.wikipedia.org/wiki/Geographic_coordinate_conversion). This step is necessary because it is easier to found geometric objects (triangles) involved in the fixing process working in geodetic coordinates.
+1) Reads the btg file and transform vertices coordinates from [ECEF (Earth fixed Earth centered) x y z](http://en.wikipedia.org/wiki/ECEF) to [geodetic lat lon elevation (lambda, phi, h)](http://en.wikipedia.org/wiki/Geographic_coordinate_conversion). This step is needed because it is easier to found geometric objects (triangles) involved in the fixing process working in geodetic coordinates.
 
 2) Calculates and saves boundary file(s) as user specified. Boundary files contain the cross section at the border coordinate of the tile at the left, right, top or bottom boundary of the tile to be fixed.
 The boundary files are in binary format and contain the (ascending ordered geodetic) coordinates and elevation of border vertices.
