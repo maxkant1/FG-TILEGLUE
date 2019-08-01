@@ -1,4 +1,4 @@
-** README **
+##README##
 
 This folder contains few sample test data to help users to try GLUE and to demonstrate its features.
 
